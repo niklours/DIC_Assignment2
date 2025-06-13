@@ -1,12 +1,12 @@
 import math
-
+from collections import deque
 class ContinuousSpace:
     def __init__(self, width: float, height: float, wall_size: float = 1.0):
         self.width = width
         self.height = height
         self.wall_size = wall_size
         self.plate_start_positions = []
-
+        self.prev_positions = deque(maxlen=20)
         self.objects = []
         self.agent = None
         self.target = None
@@ -69,7 +69,7 @@ class ContinuousSpace:
                     return True
         return False
 
-    def move_agent_direction(self, action_idx: int, step_size: float = 1.0, sub_step: float = 0.2):
+    def move_agent_direction(self, action_idx: int,  step_size=0.5, sub_step=0.1):
         direction_map = {
             0: (0, 1),
             1: (1, 0),
@@ -115,6 +115,7 @@ class ContinuousSpace:
 
         self.agent = ((new_x, new_y), size)
         self.path.append((new_x, new_y))
+        self.prev_positions.append((round(new_x, 1), round(new_y, 1)))
         return True
 
     def collect_target(self):
@@ -134,55 +135,89 @@ class ContinuousSpace:
         return self.inventory == 1 and self.target is None
 
     def get_state_vector(self):
-        """
-        Dummy get_state_vector method that returns a vector representation of the environment state.
-        """
         if self.agent is None:
             raise ValueError("Agent not placed.")
 
         (ax, ay), _ = self.agent
         inv = self.inventory
-        tx, ty = (0.0, 0.0)
-        dist = 0.0
+
         if self.target:
             tx, ty = self.target
-            dist = math.hypot(ax - tx, ay - ty)
+        else:
+            tx, ty = 0.0, 0.0
+
+        dx = (tx - ax) / self.width
+        dy = (ty - ay) / self.height
+        dist = math.hypot(tx - ax, ty - ay)
         max_dist = math.hypot(self.width, self.height)
+        norm_dist = dist / max_dist
+
+        near_obstacles = sum(
+            1 for obj in self.objects
+            if obj["type"] == self.objects_map["obstacle"]
+            and math.hypot(ax - obj["x"], ay - obj["y"]) < 1.5
+        )
+        near_obstacles = min(near_obstacles, 5) / 5.0  
+
+        rounded_pos = (round(ax, 1), round(ay, 1))
+        loop_count = self.prev_positions.count(rounded_pos)
+        loop_signal = loop_count / len(self.prev_positions) if self.prev_positions else 0.0
 
         return [
-            ax / self.width, ay / self.height,
+            ax / self.width,
+            ay / self.height,
             inv,
-            tx / self.width, ty / self.height,
-            dist / max_dist
+            tx / self.width,
+            ty / self.height,
+            dx,
+            dy,
+            norm_dist,
+            near_obstacles,
+            loop_signal,
         ]
-
-    def step_with_reward(self, action, step_size=1.0, sub_step=0.2):
+    def step_with_reward(self, action_idx, step_size=0.5, sub_step=0.1):
         if self.agent is None:
-            return -1.0
+            return -5.0
 
         (x, y), _ = self.agent
-        reward = -0.1  # smaller time penalty for exploration
+        reward = -0.5  
 
         if self.target:
             prev_dist = math.hypot(x - self.target[0], y - self.target[1])
         else:
             prev_dist = 0
 
-        moved = self.move_agent_direction(action, step_size, sub_step)
+        moved = self.move_agent_direction(action_idx, step_size, sub_step)
 
         if not moved:
-            reward -= 1  # moderate penalty for invalid move
+            reward -= 3.0
+
+        if self.collect_target():
+            reward += 10.0
 
         if self.is_task_complete():
-            reward += 100  # large but not insanely large reward for success
+            reward += 1000.0
 
         (nx, ny), _ = self.agent
         if self.target:
             new_dist = math.hypot(nx - self.target[0], ny - self.target[1])
-            shaped = prev_dist - new_dist
-            reward += shaped * 2  # continuous reward for getting closer, scaled
+            delta = prev_dist - new_dist
+            if delta > 0.01:
+                reward += delta * 3.0
+            else:
+                reward -= 0.5
+
+        sensor_radius = 1.5
+        nearby = self.detect_objects(sensor_radius)
+        for obj in nearby:
+            if obj["type"] == self.objects_map["target"]:
+                reward += 1.5 
+            elif obj["type"] == self.objects_map["obstacle"]:
+                reward -= 1.0  
 
         return reward
+
+
 
     def detect_objects(self, radius: float):
         if self.agent is None:
@@ -209,11 +244,11 @@ class ContinuousSpace:
 
     def add_rectangle_object(self, x1, y1, x2, y2, size: float, obj_type: str):
         """
-        Adds a filled rectangular area of objects (e.g., obstacles) between two points (inclusive).
-        The area is filled with `size`-sized blocks.
+        Adds a filled rectangular area of objects (e.g., obstacles) between (x1, y1) and (x2, y2).
+        The area is filled with `size`-sized square blocks.
         
         Args:
-            x1, y1: first corner of the rectangle
+            x1, y1: one corner of the rectangle
             x2, y2: opposite corner
             size: size of each square block
             obj_type: string type like "obstacle"
@@ -225,9 +260,9 @@ class ContinuousSpace:
         y_min, y_max = sorted([y1, y2])
 
         x = x_min
-        while x <= x_max - size / 2:
+        while x < x_max:
             y = y_min
-            while y <= y_max - size / 2:
+            while y < y_max:
                 self.add_object(x, y, size, obj_type)
                 y += size
             x += size
