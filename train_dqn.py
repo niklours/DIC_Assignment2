@@ -30,17 +30,19 @@ def main():
     parser = argparse.ArgumentParser(description="Train DQN agent in ContinuousSpace environment.")
     parser.add_argument("--episodes", type=int, default=100, help="Number of training episodes.")
     parser.add_argument("--steps", type=int, default=100, help="Max steps per episode.")
+    parser.add_argument("--sa", action="store_true", help="Enable Strategic Adaptation.")
     args = parser.parse_args()
 
     state_dim = 7
     action_dim = len(directions)
     agent = DQNAgent(state_dim, action_dim)
+    completed_flags = []
 
     for episode in range(args.episodes):
         env = setup_env()
         state = env.get_state_vector()
         total_reward = 0
-         
+
         for step in range(args.steps):
             action_idx = agent.select_action(state)
             reward = env.step_with_reward(action_idx, step_size=0.2, sub_step=0.05)
@@ -55,7 +57,15 @@ def main():
             if done:
                 break
 
+        completed_flags.append(done)
         print(f"[Episode {episode+1}] Total reward: {total_reward:.2f}, Epsilon: {agent.epsilon:.2f}")
+
+        if args.sa and (episode + 1) % (args.episodes // 4) == 0:
+            recent = completed_flags[-(args.episodes // 4):]
+            if not any(recent):
+                print("No success in the last third. Restarting agent and continuing.")
+                agent = DQNAgent(state_dim, action_dim)
+                completed_flags = []  # optional: reset success tracking
 
 
     max_rew=-(np.inf)
