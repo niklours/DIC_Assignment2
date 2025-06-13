@@ -25,7 +25,7 @@ def setup_env():
 def main():
     
     parser = argparse.ArgumentParser(description="Train DQN agent in ContinuousSpace environment.")
-    parser.add_argument("--episodes", type=int, default=100, help="Number of training episodes.")
+    parser.add_argument("--episodes", type=int, default=1000, help="Number of training episodes.")
     parser.add_argument("--steps", type=int, default=200, help="Max steps per episode.")
     args = parser.parse_args()
 
@@ -70,11 +70,48 @@ def main():
 
     print(f"[Evaluation] Reward: {total_reward:.2f} | Steps: {steps}")
 
-    
-    plt.imshow(get_grid_image(env))
+    img = get_grid_image(env)
+    plt.imshow(img)
     plt.title("Environment Snapshot")
-    plt.axis("off")
+
+    for obj in env.objects:
+        if obj['type'] == env.objects_map['boundary']:
+            continue
+
+        x, y = obj['x'], obj['y']
+        size = obj['size']
+        obj_type = obj['type']
+
+        px = int(x / env.width * img.shape[1])
+        py = int((env.height - y) / env.height * img.shape[0])
+
+        label_map = {
+            env.objects_map['obstacle']: 'Obstacle',
+            env.objects_map['target']: 'Target'
+        }
+        label = label_map.get(obj_type, 'Unknown')
+
+        plt.text(px, py - 15, label,
+                 color='black',
+                 fontsize=10,
+                 ha='center',
+                 va='bottom',
+                 bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', boxstyle='round,pad=0.2'))
+
+    if env.agent is not None:
+        ax, ay = env.agent[0]
+        px = int(ax / env.width * img.shape[1])
+        py = int((env.height - ay) / env.height * img.shape[0])
+        plt.text(px, py - 15, 'Agent',
+                 color='black',
+                 fontsize=10,
+                 ha='center',
+                 va='bottom',
+                 bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', boxstyle='round,pad=0.2'))
+
+    plt.axis('off')
     plt.show()
+
 
 if __name__ == "__main__":
     main()

@@ -157,14 +157,11 @@ class ContinuousSpace:
         ]
 
     def step_with_reward(self, action, step_size=1.0, sub_step=0.2):
-        """
-        Dummy reward function that returns a reward based on the agent's movement and task completion.
-        """
         if self.agent is None:
             return -1.0
 
         (x, y), _ = self.agent
-        reward = -1
+        reward = -0.1  # smaller time penalty for exploration
 
         if self.target:
             prev_dist = math.hypot(x - self.target[0], y - self.target[1])
@@ -174,17 +171,16 @@ class ContinuousSpace:
         moved = self.move_agent_direction(action, step_size, sub_step)
 
         if not moved:
-            reward -= 5
+            reward -= 1  # moderate penalty for invalid move
 
         if self.is_task_complete():
-            reward += 10000
+            reward += 100  # large but not insanely large reward for success
 
         (nx, ny), _ = self.agent
         if self.target:
             new_dist = math.hypot(nx - self.target[0], ny - self.target[1])
             shaped = prev_dist - new_dist
-            if shaped > 0.05:
-                reward += shaped * 5
+            reward += shaped * 2  # continuous reward for getting closer, scaled
 
         return reward
 
