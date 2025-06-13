@@ -140,25 +140,25 @@ class ContinuousSpace:
 
         (ax, ay), _ = self.agent
         inv = self.inventory
+        sensor_radius = 4.0
 
-        target_sensor_radius = 4.0
-        dx, dy = 0.0, 0.0
-        norm_dist = 1.0  
-        tx, ty = 0.0, 0.0
+        nearby = self.detect_objects(sensor_radius)
+        target_detected = None
+        for obj in nearby:
+            if obj["type"] == self.objects_map["target"]:
+                target_detected = obj
+                break
 
-        if self.target:
-            tx, ty = self.target
-            raw_dist = math.hypot(tx - ax, ty - ay)
-
-            if raw_dist <= target_sensor_radius:
-                dx = (tx - ax) / self.width
-                dy = (ty - ay) / self.height
-                max_dist = math.hypot(self.width, self.height)
-                norm_dist = raw_dist / max_dist
-            else:
-               
-                dx = dy = 0.0
-                norm_dist = 1.0
+        if target_detected:
+            tx, ty = target_detected["position"]
+            dx = (tx - ax) / self.width
+            dy = (ty - ay) / self.height
+            dist = math.hypot(tx - ax, ty - ay)
+            max_dist = math.hypot(self.width, self.height)
+            norm_dist = dist / max_dist
+        else:
+            dx = dy = 0.0
+            norm_dist = 1.0  
 
         near_obstacles = sum(
             1 for obj in self.objects
@@ -170,6 +170,7 @@ class ContinuousSpace:
         rounded_pos = (round(ax, 1), round(ay, 1))
         loop_count = self.prev_positions.count(rounded_pos)
         loop_signal = loop_count / len(self.prev_positions) if self.prev_positions else 0.0
+
         return [
             ax / self.width,
             ay / self.height,
