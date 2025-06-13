@@ -2,10 +2,15 @@ import argparse
 import matplotlib.pyplot as plt
 from img_gen import get_grid_image
 from new_environment import ContinuousSpace  
-from agents.dqn_agent import DQNAgent  
+from agents.dqn_agent import DQNAgent
+from agents.DuelingDQN_agent import DuelingDQNAgent
 import sys
 import os
 import numpy as np
+
+
+
+
 directions = ['up', 'down', 'left', 'right', 'up_left', 'up_right', 'down_left', 'down_right']
 
 def setup_env():
@@ -28,13 +33,24 @@ def setup_env():
 
 def main():
     parser = argparse.ArgumentParser(description="Train DQN agent in ContinuousSpace environment.")
-    parser.add_argument("--episodes", type=int, default=100, help="Number of training episodes.")
+    parser.add_argument("--episodes", type=int, default=1000, help="Number of training episodes.")
     parser.add_argument("--steps", type=int, default=100, help="Max steps per episode.")
+    parser.add_argument("--model", choices=["dqn", "dueling"], default="dqn",
+                        help="Choose model architecture: dqn or dueling")
     args = parser.parse_args()
 
     state_dim = 10
     action_dim = len(directions)
-    agent = DQNAgent(state_dim, action_dim)
+
+    if args.model == "dqn":
+        from agents.dqn_agent import DQNAgent
+        agent_class = DQNAgent
+    else:
+        from agents.DuelingDQN_agent import DuelingDQNAgent
+        agent_class = DuelingDQNAgent
+
+    agent = agent_class(state_dim, action_dim)
+
 
     for episode in range(args.episodes):
         env = setup_env()

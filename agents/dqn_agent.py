@@ -99,7 +99,5 @@ class DQNAgent:
         if self.epsilon <= self.epsilon_min + 1e-4:
 
             self.epsilon = self.epsilon_start
-        
-
     
         self.soft_update()
