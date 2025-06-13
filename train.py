@@ -1,78 +1,119 @@
-"""
-Train your RL Agent in this file. 
-"""
+import pygame
+import random
+from img_gen import get_grid_image
+from continuous_space import ContinuousSpace
+from new_grid_creator import *
 
-from argparse import ArgumentParser
-from pathlib import Path
-from tqdm import trange
+COLOR_MAP = {
+    1: (100, 100, 100),  # boundary (gray)
+    2: (139, 69, 19),    # obstacle (brown)
+    3: (255, 165, 0),    # plate target (orange)
+    4: (0, 255, 0),      # kitchen (green)
+    5: (255, 0, 0),    # occupied table (red)
+}
 
-try:
-    from world import Environment
-    from agents.random_agent import RandomAgent
-except ModuleNotFoundError:
-    from os import path
-    from os import pardir
-    import sys
-    root_path = path.abspath(path.join(
-        path.join(path.abspath(__file__), pardir), pardir)
-    )
-    if root_path not in sys.path:
-        sys.path.extend(root_path)
-    from world import Environment
-    from agents.random_agent import RandomAgent
+width = 20.0
+height = 15.0
+def main():
+    
+    world = initialize_world(width = width, height = height)
 
-def parse_args():
-    p = ArgumentParser(description="DIC Reinforcement Learning Trainer.")
-    p.add_argument("GRID", type=Path, nargs="+",
-                   help="Paths to the grid file to use. There can be more than "
-                        "one.")
-    p.add_argument("--no_gui", action="store_true",
-                   help="Disables rendering to train faster")
-    p.add_argument("--sigma", type=float, default=0.1,
-                   help="Sigma value for the stochasticity of the environment.")
-    p.add_argument("--fps", type=int, default=30,
-                   help="Frames per second to render at. Only used if "
-                        "no_gui is not set.")
-    p.add_argument("--iter", type=int, default=1000,
-                   help="Number of iterations to go through.")
-    p.add_argument("--random_seed", type=int, default=0,
-                   help="Random seed value for the environment.")
-    return p.parse_args()
+    # world = ContinuousSpace(width=20.0, height=15.0, wall_size=1.0)
+
+    # kitchen_x, kitchen_y = 1.0, 13.0
+    # world.add_object(kitchen_x, kitchen_y, 2.0, "kitchen")
+
+    # plate_table_positions = [(5, 5), (10, 10), (14, 7)]
+    # for x, y in plate_table_positions:
+    #     world.add_object(x, y, 1.0, "target")
+
+    # obstacle_positions = [(7, 5), (12, 8), (4, 10), (9, 3)]
+    # for x, y in obstacle_positions:
+    #     world.add_object(x, y, 1.0, "obstacle")
+
+    # occupied_positions = [(6, 9), (11, 4)]
+    # for x, y in occupied_positions:
+    #     world.add_object(x, y, 2.0, "occupied")
 
 
-def main(grid_paths: list[Path], no_gui: bool, iters: int, fps: int,
-         sigma: float, random_seed: int):
-    """Main loop of the program."""
+    # world.place_agent(2.0, 2.0, 0.6)
 
-    for grid in grid_paths:
-        
-        # Set up the environment
-        env = Environment(grid, no_gui,sigma=sigma, target_fps=fps, 
-                          random_seed=random_seed)
-        
-        # Initialize agent
-        agent = RandomAgent()
-        
-        # Always reset the environment to initial state
-        state = env.reset()
-        for _ in trange(iters):
-            
-            # Agent takes an action based on the latest observation and info.
-            action = agent.take_action(state)
+    pygame.init()
+    scale = 40
+    screen = pygame.display.set_mode((int(world.width * scale), int(world.height * scale)))
+    pygame.display.set_caption("Robot Plate Collector")
+    clock = pygame.time.Clock()
 
-            # The action is performed in the environment
-            state, reward, terminated, info = env.step(action)
-            
-            # If the final state is reached, stop.
-            if terminated:
-                break
+    directions = ['up', 'down', 'left', 'right', 'up_left', 'up_right', 'down_left', 'down_right']
+    key_to_direction = {
+        pygame.K_UP: "up",
+        pygame.K_DOWN: "down",
+        pygame.K_LEFT: "left",
+        pygame.K_RIGHT: "right",
 
-            agent.update(state, reward, info["actual_action"])
+        pygame.K_w: "up",
+        pygame.K_s: "down",
+        pygame.K_a: "left",
+        pygame.K_d: "right",
 
-        # Evaluate the agent
-        Environment.evaluate_agent(grid, agent, iters, sigma, random_seed=random_seed)
+        pygame.K_q: "up_left",
+        pygame.K_e: "up_right",
+        pygame.K_z: "down_left",
+        pygame.K_c: "down_right"
+    }
 
+    running = True
+    while running:
+        screen.fill((255, 255, 255))
 
-if __name__ == '__main__':
-    args = parse_args()
-    main(args.GRID, args.no_gui, args.iter, args.fps, args.sigma, args.random_seed)
+        for obj in world.objects:
+            x, y, size, obj_type = obj["x"], obj["y"], obj["size"], obj["type"]
+            color = COLOR_MAP.get(obj_type, (0, 0, 0))
+            rect = pygame.Rect(x * scale, (world.height - y - size) * scale, size * scale, size * scale)
+            pygame.draw.rect(screen, color, rect)
+
+        if world.agent:
+            (x, y), size = world.agent
+            rect = pygame.Rect(x * scale, (world.height - y - size) * scale, size * scale, size * scale)
+            pygame.draw.rect(screen, (0, 0, 255), rect)
+
+        pygame.display.flip()
+
+        for event in pygame.event.get():
+             if event.type == pygame.QUIT:
+                 running = False
+
+        keys = pygame.key.get_pressed()
+        for key, direction in key_to_direction.items():
+             if keys[key]:
+                 world.move_agent_direction(direction, step_size=0.2, sub_step=0.05)
+                 reward = world.step_with_reward(direction, step_size=0.2, sub_step=0.05)
+                 print(f"Step reward: {reward:.2f}, Total reward: {world.total_reward:.2f}")
+
+                 break  
+
+             if world.is_task_complete():
+                    print("[SUCCESS] All plates delivered to kitchen!")
+                    running = False
+                    break
+        # direction = random.choice(directions)
+        # world.move_agent_direction(direction, step_size=0.2, sub_step=0.05)
+        # reward = world.step_with_reward(direction, step_size=0.2, sub_step=0.05)
+        # print(f"Step reward: {reward:.2f}, Total reward: {world.total_reward:.2f}")
+    
+
+        # if world.is_task_complete():
+        #     print("[SUCCESS] All plates delivered to kitchen!")
+        #     running = False
+        #     break
+        clock.tick(30)
+
+    pygame.quit()
+    import matplotlib.pyplot as plt
+    plt.imshow(get_grid_image(world))
+    plt.title("Environment Snapshot")
+    plt.axis("off")
+    plt.show()
+
+if __name__ == "__main__":
+    main()
