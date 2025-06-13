@@ -65,9 +65,11 @@ def main():
             if not any(recent):
                 print("No success in the last third. Restarting agent and continuing.")
                 agent = DQNAgent(state_dim, action_dim)
-                completed_flags = []  # optional: reset success tracking
+                completed_flags = []  
 
-
+        if agent.q_stable:
+            print(f"\nEarly stopping triggered at episode {episode+1} due to Q-value convergence.\n")
+            break
     max_rew=-(np.inf)
     
     for _ in range(1):
@@ -77,7 +79,7 @@ def main():
         total_reward = 0
         steps = 0
         while not env.is_task_complete() and steps < args.steps:
-            action_idx = agent.select_action(state)
+            action_idx = agent.select_action(state, deterministic=True)
             reward = env.step_with_reward(action_idx, step_size=0.2, sub_step=0.05)
             state = env.get_state_vector()
             total_reward += reward

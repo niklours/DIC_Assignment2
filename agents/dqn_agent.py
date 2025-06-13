@@ -38,7 +38,8 @@ class DQNAgent:
         self.model = DQN(state_dim, action_dim).to(self.device)
         self.target_model = DQN(state_dim, action_dim).to(self.device)
         self.target_model.load_state_dict(self.model.state_dict())
-
+        self.q_value_diffs = []  
+        self.q_stable = False
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         self.memory = ReplayBuffer()
         self.gamma = gamma
@@ -51,8 +52,8 @@ class DQNAgent:
         self.epsilon_decay = 500  
         self.train_steps = 0
 
-    def select_action(self, state):
-        if random.random() < self.epsilon:
+    def select_action(self, state, deterministic=False):
+        if not deterministic and random.random() < self.epsilon:
             return random.randint(0, self.action_dim - 1)
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         with torch.no_grad():
@@ -78,29 +79,37 @@ class DQNAgent:
         next_states = torch.tensor(next_states, dtype=torch.float32).to(self.device)
         dones = torch.tensor(dones, dtype=torch.float32).to(self.device)
 
-    
+        with torch.no_grad():
+            prev_q_values = self.model(states).clone()
+
         with torch.no_grad():
             next_actions = self.model(next_states).argmax(dim=1, keepdim=True)
             next_q = self.target_model(next_states).gather(1, next_actions).squeeze()
-
         q_target = rewards + self.gamma * (1 - dones) * next_q
+
         q_values = self.model(states)
         q_pred = q_values.gather(1, actions.unsqueeze(1)).squeeze()
 
         loss = nn.MSELoss()(q_pred, q_target.detach())
-
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
+        with torch.no_grad():
+            new_q_values = self.model(states)
+            diff = torch.mean((prev_q_values - new_q_values) ** 2).item()
+            self.q_value_diffs.append(diff)
+            if len(self.q_value_diffs) > 50:
+                self.q_value_diffs.pop(0)
+                avg_q_change = sum(self.q_value_diffs) / len(self.q_value_diffs)
+
+                self.q_stable = avg_q_change < 1e-3
 
         self.train_steps += 1
         self.epsilon *= 0.995
         if self.epsilon <= self.epsilon_min + 1e-4:
-
             self.epsilon = self.epsilon_start
-        
 
-    
         self.soft_update()
+
 
