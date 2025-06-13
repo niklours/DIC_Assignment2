@@ -32,7 +32,7 @@ def main():
     parser.add_argument("--steps", type=int, default=100, help="Max steps per episode.")
     args = parser.parse_args()
 
-    state_dim = 10
+    state_dim = 7
     action_dim = len(directions)
     agent = DQNAgent(state_dim, action_dim)
 
@@ -56,6 +56,7 @@ def main():
                 break
 
         print(f"[Episode {episode+1}] Total reward: {total_reward:.2f}, Epsilon: {agent.epsilon:.2f}")
+
 
     max_rew=-(np.inf)
     
