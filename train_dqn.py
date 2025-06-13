@@ -63,7 +63,7 @@ def main():
         if args.sa and (episode + 1) % (args.episodes // 4) == 0:
             recent = completed_flags[-(args.episodes // 4):]
             if not any(recent):
-                print("No success in the last third. Restarting agent and continuing.")
+                print("No success. Restarting agent and continuing.")
                 agent = DQNAgent(state_dim, action_dim)
                 completed_flags = []  
 
