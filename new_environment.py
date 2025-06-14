@@ -219,7 +219,15 @@ class ContinuousSpace:
                 reward += 1.5 
             elif obj["type"] == self.objects_map["obstacle"]:
                 reward -= 1.0  
-    
+        rounded_pos = (round(nx, 1), round(ny, 1))
+        self.prev_positions.append(rounded_pos)
+        if len(self.prev_positions) > 100:
+            self.prev_positions.pop(0)
+
+        loop_count = self.prev_positions.count(rounded_pos)
+        loop_signal = loop_count / len(self.prev_positions)
+        if loop_signal > 0.2:
+            reward -= loop_signal * 5.0
         return reward
 
 

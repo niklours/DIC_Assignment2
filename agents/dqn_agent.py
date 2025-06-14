@@ -49,7 +49,7 @@ class DQNAgent:
         self.epsilon = 1.0
         self.epsilon_start = 1.0
         self.epsilon_min = 0.1
-        self.epsilon_decay = 500  
+        self.epsilon_decay = 0.995  
         self.train_steps = 0
 
     def select_action(self, state, deterministic=False):
@@ -103,10 +103,10 @@ class DQNAgent:
                 self.q_value_diffs.pop(0)
                 avg_q_change = sum(self.q_value_diffs) / len(self.q_value_diffs)
 
-                self.q_stable = avg_q_change < 1e-3
+                self.q_stable = avg_q_change < 1e-4
 
         self.train_steps += 1
-        self.epsilon *= 0.995
+        self.epsilon *= self.epsilon_decay
         if self.epsilon <= self.epsilon_min + 1e-4:
             self.epsilon = self.epsilon_start
 
