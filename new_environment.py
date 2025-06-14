@@ -10,7 +10,7 @@ class ContinuousSpace:
         self.objects = []
         self.agent = None
         self.target = None
-        self.bot_radius = 0.1
+        self.bot_radius = 3.0
         self.inventory = 0
         self.path = []
 
@@ -41,6 +41,31 @@ class ContinuousSpace:
         if obj_type == "target":
             self.target = (x, y)
             self.plate_start_positions.append((x, y, size))
+
+    def add_rectangle_object(self, x1, y1, x2, y2, size: float, obj_type: str):
+        """
+        Adds a filled rectangular area of objects (e.g., obstacles) between (x1, y1) and (x2, y2).
+        The area is filled with `size`-sized square blocks.
+        
+        Args:
+            x1, y1: one corner of the rectangle
+            x2, y2: opposite corner
+            size: size of each square block
+            obj_type: string type like "obstacle"
+        """
+        if obj_type not in self.objects_map:
+            raise ValueError(f"Unknown object type: {obj_type}")
+
+        x_min, x_max = sorted([x1, x2])
+        y_min, y_max = sorted([y1, y2])
+
+        x = x_min
+        while x < x_max:
+            y = y_min
+            while y < y_max:
+                self.add_object(x, y, size, obj_type)
+                y += size
+            x += size
 
     def place_agent(self, x: float, y: float, size: float):
         if not self._is_inside_inner_area(x, y, size):
@@ -140,9 +165,9 @@ class ContinuousSpace:
 
         (ax, ay), _ = self.agent
         inv = self.inventory
-        sensor_radius = 4.0
+        
 
-        nearby = self.detect_objects(sensor_radius)
+        nearby = self.detect_objects(self.bot_radius)
         target_detected = None
         for obj in nearby:
             if obj["type"] == self.objects_map["target"]:
@@ -196,7 +221,7 @@ class ContinuousSpace:
         moved = self.move_agent_direction(action_idx, step_size, sub_step)
 
         if not moved:
-            reward -= 2.0  # penalty for bumping into wall or obstacle
+            reward -= 2.0  
 
         if self.collect_target():
             reward += 20.0
@@ -209,18 +234,19 @@ class ContinuousSpace:
             new_dist = math.hypot(nx - self.target[0], ny - self.target[1])
             delta = prev_dist - new_dist
             if delta > 0.01:
-                reward += delta * 5.0  # stronger reward for progress
+                reward += delta*5.0  # stronger reward
             else:
-                reward -= 1.0  # harsher penalty for going away
+                reward -= 1.0
 
         # Proximity detection
         sensor_radius = 2.0
-        nearby = self.detect_objects(sensor_radius)
+        self.bot_radius = 2.0
+        nearby = self.detect_objects(self.bot_radius)
         for obj in nearby:
             if obj["type"] == self.objects_map["target"]:
                 reward += 2.0
             elif obj["type"] == self.objects_map["obstacle"]:
-                reward -= 0.5  # softer obstacle penalty
+                reward -= 1.0  
 
         # Loop penalty
         rounded_pos = (round(nx, 1), round(ny, 1))
@@ -259,27 +285,4 @@ class ContinuousSpace:
                 })
         return nearby
 
-    def add_rectangle_object(self, x1, y1, x2, y2, size: float, obj_type: str):
-        """
-        Adds a filled rectangular area of objects (e.g., obstacles) between (x1, y1) and (x2, y2).
-        The area is filled with `size`-sized square blocks.
-        
-        Args:
-            x1, y1: one corner of the rectangle
-            x2, y2: opposite corner
-            size: size of each square block
-            obj_type: string type like "obstacle"
-        """
-        if obj_type not in self.objects_map:
-            raise ValueError(f"Unknown object type: {obj_type}")
-
-        x_min, x_max = sorted([x1, x2])
-        y_min, y_max = sorted([y1, y2])
-
-        x = x_min
-        while x < x_max:
-            y = y_min
-            while y < y_max:
-                self.add_object(x, y, size, obj_type)
-                y += size
-            x += size
+    

@@ -4,6 +4,7 @@ import torch.optim as optim
 import numpy as np
 import random
 from collections import deque
+import torch.nn.functional as F
 
 class DQN(nn.Module):
     def __init__(self, input_dim, output_dim):
@@ -17,6 +18,20 @@ class DQN(nn.Module):
 
     def forward(self, x):
         return self.net(x)
+    
+# class DQN(nn.Module):
+#     def __init__(self, state_size, action_size, hidden_size=128):
+#         super(DQN, self).__init__()
+#         self.fc1 = nn.Linear(state_size, hidden_size)
+#         self.fc2 = nn.Linear(hidden_size, hidden_size)
+#         self.fc3 = nn.Linear(hidden_size, hidden_size)
+#         self.out = nn.Linear(hidden_size, action_size)
+
+#     def forward(self, state):
+#         x = F.relu(self.fc1(state))
+#         x = F.relu(self.fc2(x))
+#         x = F.relu(self.fc3(x))
+#         return self.out(x)
 
 class ReplayBuffer:
     def __init__(self, capacity=10000):
@@ -28,6 +43,7 @@ class ReplayBuffer:
     def sample(self, batch_size):
         batch = random.sample(self.buffer, batch_size)
         return map(np.array, zip(*batch))
+  
 
     def __len__(self):
         return len(self.buffer)
@@ -51,15 +67,38 @@ class DQNAgent:
         self.epsilon_min = 0.1
         self.epsilon_decay = 0.995  
         self.train_steps = 0
-
+        self.greedy_bias = 0.8
+        
+        
+    # def select_action(self, state, deterministic=False):
+    #     if not deterministic and random.random() < self.epsilon:
+    #         return random.randint(0, self.action_dim - 1)
+    #     state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
+    #     with torch.no_grad():
+    #         q_vals = self.model(state)
+    #     return q_vals.argmax().item()
+    
     def select_action(self, state, deterministic=False):
-        if not deterministic and random.random() < self.epsilon:
-            return random.randint(0, self.action_dim - 1)
-        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
-        with torch.no_grad():
-            q_vals = self.model(state)
-        return q_vals.argmax().item()
+        eps_threshold = self.epsilon_min + (self.epsilon_start - self.epsilon_min) * \
+                        np.exp(-1.0 * self.train_steps / self.epsilon_decay)
+        self.train_steps += 1
 
+        if not deterministic and random.random() < eps_threshold:
+            if random.random() < self.greedy_bias:
+                state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
+                with torch.no_grad():
+                    q_vals = self.model(state_tensor)
+                return q_vals.argmax().item()
+            else:
+                return random.randint(0, self.action_dim - 1)
+        else:
+            state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
+            with torch.no_grad():
+                q_vals = self.model(state_tensor)
+            return q_vals.argmax().item()
+
+    
+    # Storing previous experience
     def store(self, state, action, reward, next_state, done):
         self.memory.push((state, action, reward, next_state, done))
 

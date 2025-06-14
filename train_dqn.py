@@ -10,7 +10,8 @@ directions = ['up', 'down', 'left', 'right', 'up_left', 'up_right', 'down_left',
 
 def setup_env():
     world = ContinuousSpace(width=11.0, height=11.0, wall_size=1.0)
-    world.add_object(5.0, 5.0, 1.0, "target")
+    world.add_object(8.0, 6.0, 1.0, "target")
+    #world.add_object(4.0, 6.0, 1.0, "target")
     obstacle_coords = [
         (3.0, 3.0, 3.2, 3.2),
         (3.0, 2.3, 3.2, 2.4),
@@ -19,9 +20,6 @@ def setup_env():
     ]
     for x1, y1, x2, y2 in obstacle_coords:
         world.add_rectangle_object(x1, y1, x2, y2, size=1.0, obj_type="obstacle")
-
-
-    world.place_agent(2.0, 2.0, 0.6)
 
     world.place_agent(2.0, 2.0, 0.6)
     return world
@@ -39,7 +37,7 @@ def main():
     completed_flags = []
 
     for episode in range(args.episodes):
-        env = setup_env()
+        env = setup_env() # reseting agent
         state = env.get_state_vector()
         total_reward = 0
 
