@@ -4,6 +4,7 @@ import torch.optim as optim
 import numpy as np
 import random
 from collections import deque
+import torch.nn.functional as F
 
 class DQN(nn.Module):
     def __init__(self, input_dim, output_dim):
@@ -13,9 +14,20 @@ class DQN(nn.Module):
             nn.Linear(128, 128), nn.ReLU(),
             nn.Linear(128, output_dim)
         )
-
     def forward(self, x):
         return self.net(x)
+    #     self.fc1 = nn.Linear(state_size, dim)
+    #     self.fc2 = nn.Linear(dim, dim)
+    #     self.fc3 = nn.Linear(dim, action_size)
+    #     self.dropout = nn.Dropout(p=dropout_rate)  # Initializing dropout layer
+
+    # def forward(self, x):
+    #     x = F.relu(self.fc1(x))
+    #     x = self.dropout(x)  # Applying dropout after the first activation
+    #     x = F.relu(self.fc2(x))
+    #     x = self.dropout(x)  # Applying dropout after the second activation
+    #     x = self.fc3(x)
+    #     return x
 
 class ReplayBuffer:
     def __init__(self, capacity=10000):

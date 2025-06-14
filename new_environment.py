@@ -1,4 +1,5 @@
 import math
+import helpers
 
 class ContinuousSpace:
     def __init__(self, width: float, height: float, wall_size: float = 1.0):
@@ -23,6 +24,7 @@ class ContinuousSpace:
 
         self.create_boundary_walls()
 
+    ##### CREATING THE ENVIRONMENT ##############
     def create_boundary_walls(self):
         s = self.wall_size
         for i in range(math.ceil(self.width / s)):
@@ -68,7 +70,33 @@ class ContinuousSpace:
                 if self._squares_overlap(px, py, size, obj["x"], obj["y"], obj["size"]):
                     return True
         return False
+    
+    def add_rectangle_object(self, x1, y1, x2, y2, size: float, obj_type: str):
+        """
+        Adds a filled rectangular area of objects (e.g., obstacles) between two points (inclusive).
+        The area is filled with `size`-sized blocks.
+        
+        Args:
+            x1, y1: first corner of the rectangle
+            x2, y2: opposite corner
+            size: size of each square block
+            obj_type: string type like "obstacle"
+        """
+        if obj_type not in self.objects_map:
+            raise ValueError(f"Unknown object type: {obj_type}")
 
+        x_min, x_max = sorted([x1, x2])
+        y_min, y_max = sorted([y1, y2])
+
+        x = x_min
+        while x <= x_max - size / 2:
+            y = y_min
+            while y <= y_max - size / 2:
+                self.add_object(x, y, size, obj_type)
+                y += size
+            x += size
+
+    ##### FUNCTIONS ABOUT AGENTS MOVES ##############
     def move_agent_direction(self, action_idx: int, step_size: float = 1.0, sub_step: float = 0.2):
         direction_map = {
             0: (0, 1),
@@ -166,6 +194,13 @@ class ContinuousSpace:
         (x, y), _ = self.agent
         reward = -1
 
+        ## Scanning surrounding environment
+        sensor_data = self.detect_objects(position=(x, y), radius=0.5)
+              
+        for obj in sensor_data:
+            print(f"Detected object type {obj['type']} at distance {obj['distance']:.2f}")
+            if obj['type'] == 3: reward *= - 100
+
         if self.target:
             prev_dist = math.hypot(x - self.target[0], y - self.target[1])
         else:
@@ -179,7 +214,7 @@ class ContinuousSpace:
         if self.is_task_complete():
             reward += 10000
 
-        (nx, ny), _ = self.agent
+        (nx, ny), size = self.agent
         if self.target:
             new_dist = math.hypot(nx - self.target[0], ny - self.target[1])
             shaped = prev_dist - new_dist
@@ -188,51 +223,74 @@ class ContinuousSpace:
 
         return reward
 
-    def detect_objects(self, radius: float):
-        if self.agent is None:
-            return []
 
-        (ax, ay), a_size = self.agent
-        cx = ax + a_size / 2
-        cy = ay + a_size / 2
+    def detect_objects(self, position: tuple[float, float], radius: float):
+        """
+        Perform 360-degree scan around a given position.
 
-        nearby = []
+        Args:
+            position: tuple (x, y) of agent center position.
+            radius: scanning radius.
+
+        Returns:
+            List of detected objects as dicts with: type, distance, position, size.
+        """
+        px, py = position
+        detected = []
         for obj in self.objects:
             ox, oy = obj["x"], obj["y"]
             osize = obj["size"]
-            ocx = ox + osize / 2
-            ocy = oy + osize / 2
-            distance = math.hypot(cx - ocx, cy - ocy)
+
+            # Object center (assuming squares)
+            object_center_x = ox + osize / 2
+            object_center_y = oy + osize / 2
+
+            # Euclidean distance
+            distance = math.hypot(px - object_center_x, py - object_center_y)
+
             if distance <= radius:
-                nearby.append({
-                    "position": (ox, oy),
-                    "size": osize,
-                    "type": obj["type"]
+                detected.append({
+                    "type": obj["type"],
+                    "distance": distance
                 })
-        return nearby
 
-    def add_rectangle_object(self, x1, y1, x2, y2, size: float, obj_type: str):
-        """
-        Adds a filled rectangular area of objects (e.g., obstacles) between two points (inclusive).
-        The area is filled with `size`-sized blocks.
+        return detected
+    
+    # def scan_for_objects(x, y, is_object_at, max_radius=1.0, angle_step_deg=1.0, radial_step=0.1):
+    #     """
+    #     Scans 360 degrees around (x, y) for objects.
+    #     """
+    #     def is_object_at(self, px, py):
+    #         for obj in self.objects:
+    #             distance = math.hypot(px - obj["x"], py - obj["y"])
+    #             if distance <= obj["radius"]:
+    #                 return True
+    #         return False
         
-        Args:
-            x1, y1: first corner of the rectangle
-            x2, y2: opposite corner
-            size: size of each square block
-            obj_type: string type like "obstacle"
-        """
-        if obj_type not in self.objects_map:
-            raise ValueError(f"Unknown object type: {obj_type}")
+    #     detected_objects = []
+    #     angle_step_rad = math.radians(angle_step_deg)
 
-        x_min, x_max = sorted([x1, x2])
-        y_min, y_max = sorted([y1, y2])
+    #     for i in range(int(360 / angle_step_deg)):
+    #         theta = i * angle_step_rad
+    #         cos_theta = math.cos(theta)
+    #         sin_theta = math.sin(theta)
+            
+    #         for r in range(1, int(max_radius / radial_step) + 1):
+    #             distance = r * radial_step
+    #             px = x + distance*cos_theta
+    #             py = y + distance*sin_theta
+                
+    #             if is_object_at(px, py):
+    #                 # detected_objects.append({
+    #                 # "type": obj["type"],
+    #                 # "distance": distance,
+    #                 # "position": (px, py),
+    #                 # "size": osize
+    #                 # })
+    #                 detected_objects.append((px, py))
+    #                 break  # stop scanning
+    #     return detected_objects
+    
+    
 
-        x = x_min
-        while x <= x_max - size / 2:
-            y = y_min
-            while y <= y_max - size / 2:
-                self.add_object(x, y, size, obj_type)
-                y += size
-            x += size
-
+    
