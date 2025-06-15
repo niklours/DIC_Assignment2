@@ -33,7 +33,7 @@ class ReplayBuffer:
         return len(self.buffer)
 
 class DQNAgent:
-    def __init__(self, state_dim, action_dim, gamma=0.95, lr=1e-3, batch_size=32):
+    def __init__(self, state_dim, action_dim,tol, gamma=0.95, lr=1e-3, batch_size=32):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = DQN(state_dim, action_dim).to(self.device)
         self.target_model = DQN(state_dim, action_dim).to(self.device)
@@ -51,14 +51,36 @@ class DQNAgent:
         self.epsilon_min = 0.1
         self.epsilon_decay = 0.995  
         self.train_steps = 0
+        self.greedy_bias = 0.8
+        self.success_history = deque(maxlen=tol)  
+        self.early_stop = False
 
+
+    def update_success(self, done):
+        self.success_history.append(done)
+        success_rate = sum(self.success_history) / len(self.success_history)
+
+  
+        if success_rate > 0.95:
+                self.early_stop = True
     def select_action(self, state, deterministic=False):
-        if not deterministic and random.random() < self.epsilon:
-            return random.randint(0, self.action_dim - 1)
-        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
-        with torch.no_grad():
-            q_vals = self.model(state)
-        return q_vals.argmax().item()
+        eps_threshold = self.epsilon_min + (self.epsilon_start - self.epsilon_min) * \
+                        np.exp(-1.0 * self.train_steps / self.epsilon_decay)
+        self.train_steps += 1
+
+        if not deterministic and random.random() < eps_threshold:
+            if random.random() < self.greedy_bias:
+                state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
+                with torch.no_grad():
+                    q_vals = self.model(state_tensor)
+                return q_vals.argmax().item()
+            else:
+                return random.randint(0, self.action_dim - 1)
+        else:
+            state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
+            with torch.no_grad():
+                q_vals = self.model(state_tensor)
+            return q_vals.argmax().item()
 
     def store(self, state, action, reward, next_state, done):
         self.memory.push((state, action, reward, next_state, done))
@@ -99,7 +121,7 @@ class DQNAgent:
             new_q_values = self.model(states)
             diff = torch.mean((prev_q_values - new_q_values) ** 2).item()
             self.q_value_diffs.append(diff)
-            if len(self.q_value_diffs) > 50:
+            if len(self.q_value_diffs) > 10:
                 self.q_value_diffs.pop(0)
                 avg_q_change = sum(self.q_value_diffs) / len(self.q_value_diffs)
 

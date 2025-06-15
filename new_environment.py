@@ -182,10 +182,10 @@ class ContinuousSpace:
         ]
     def step_with_reward(self, action_idx, step_size=0.5, sub_step=0.1):
         if self.agent is None:
-            return -5.0
+            return -10.0  # Stronger penalty if agent not initialized
 
         (x, y), _ = self.agent
-        reward = -0.5  
+        reward = -0.2  # small time penalty
 
         if self.target:
             prev_dist = math.hypot(x - self.target[0], y - self.target[1])
@@ -195,10 +195,10 @@ class ContinuousSpace:
         moved = self.move_agent_direction(action_idx, step_size, sub_step)
 
         if not moved:
-            reward -= 3.0
+            reward -= 2.0  
 
         if self.collect_target():
-            reward += 10.0
+            reward += 20.0
 
         if self.is_task_complete():
             reward += 1000.0
@@ -208,17 +208,21 @@ class ContinuousSpace:
             new_dist = math.hypot(nx - self.target[0], ny - self.target[1])
             delta = prev_dist - new_dist
             if delta > 0.01:
-                reward += delta * 3.0
+                reward += delta*5.0  # stronger reward
             else:
-                reward -= 0.5
+                reward -= 1.0
 
-        sensor_radius = 1.5
-        nearby = self.detect_objects(sensor_radius)
+        # Proximity detection
+        sensor_radius = 2.0
+        self.bot_radius = 2.0
+        nearby = self.detect_objects(self.bot_radius)
         for obj in nearby:
             if obj["type"] == self.objects_map["target"]:
-                reward += 1.5 
+                reward += 2.0
             elif obj["type"] == self.objects_map["obstacle"]:
                 reward -= 1.0  
+
+        # Loop penalty
         rounded_pos = (round(nx, 1), round(ny, 1))
         self.prev_positions.append(rounded_pos)
         if len(self.prev_positions) > 100:
@@ -226,8 +230,9 @@ class ContinuousSpace:
 
         loop_count = self.prev_positions.count(rounded_pos)
         loop_signal = loop_count / len(self.prev_positions)
-        if loop_signal > 0.2:
-            reward -= loop_signal * 5.0
+        if loop_signal > 0.1:
+            reward -= loop_signal * 10.0  # stronger loop penalty
+
         return reward
 
 
