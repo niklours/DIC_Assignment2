@@ -62,7 +62,7 @@ def eval_agent(env, agent, args,avg_q_values):
 
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(agent.device)
-            q_val = agent.model(state_tensor).max().item()
+            q_val = agent.policy(state_tensor).max().item()
             q_value_total += q_val
 
     avg_q_value = q_value_total / steps if steps > 0 else 0.0

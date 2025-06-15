@@ -35,12 +35,12 @@ class ReplayBuffer:
 class DQNAgent:
     def __init__(self, state_dim, action_dim,tol, gamma=0.95, lr=1e-3, batch_size=32):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = DQN(state_dim, action_dim).to(self.device)
+        self.policy = DQN(state_dim, action_dim).to(self.device)
         self.target_model = DQN(state_dim, action_dim).to(self.device)
-        self.target_model.load_state_dict(self.model.state_dict())
+        self.target_model.load_state_dict(self.policy.state_dict())
         self.q_value_diffs = []  
         self.q_stable = False
-        self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=lr)
         self.memory = ReplayBuffer()
         self.gamma = gamma
         self.batch_size = batch_size
@@ -77,21 +77,21 @@ class DQNAgent:
             if random.random() < self.greedy_bias:
                 state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
                 with torch.no_grad():
-                    q_vals = self.model(state_tensor)
+                    q_vals = self.policy(state_tensor)
                 return q_vals.argmax().item()
             else:
                 return random.randint(0, self.action_dim - 1)
         else:
             state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
             with torch.no_grad():
-                q_vals = self.model(state_tensor)
+                q_vals = self.policy(state_tensor)
             return q_vals.argmax().item()
 
     def store(self, state, action, reward, next_state, done):
         self.memory.push((state, action, reward, next_state, done))
 
     def soft_update(self, tau=0.005):
-        for target_param, param in zip(self.target_model.parameters(), self.model.parameters()):
+        for target_param, param in zip(self.target_model.parameters(), self.policy.parameters()):
             target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
 
     def train_step(self):
@@ -107,14 +107,14 @@ class DQNAgent:
         dones = torch.tensor(dones, dtype=torch.float32).to(self.device)
 
         with torch.no_grad():
-            prev_q_values = self.model(states).clone()
+            prev_q_values = self.policy(states).clone()
 
         with torch.no_grad():
-            next_actions = self.model(next_states).argmax(dim=1, keepdim=True)
+            next_actions = self.policy(next_states).argmax(dim=1, keepdim=True)
             next_q = self.target_model(next_states).gather(1, next_actions).squeeze()
         q_target = rewards + self.gamma * (1 - dones) * next_q
 
-        q_values = self.model(states)
+        q_values = self.policy(states)
         q_pred = q_values.gather(1, actions.unsqueeze(1)).squeeze()
 
         loss = nn.MSELoss()(q_pred, q_target.detach())
@@ -123,7 +123,7 @@ class DQNAgent:
         self.optimizer.step()
 
         with torch.no_grad():
-            new_q_values = self.model(states)
+            new_q_values = self.policy(states)
             diff = torch.mean((prev_q_values - new_q_values) ** 2).item()
             self.q_value_diffs.append(diff)
             self.q_value_diffs_all.append(diff)

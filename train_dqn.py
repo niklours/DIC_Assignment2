@@ -47,7 +47,7 @@ def main():
 
             with torch.no_grad():
                 state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(agent.device)
-                q_val = agent.model(state_tensor).max().item()
+                q_val = agent.policy(state_tensor).max().item()
                 q_sum += q_val
                 steps += 1
 
