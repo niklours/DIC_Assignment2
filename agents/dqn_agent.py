@@ -68,7 +68,7 @@ class DQNAgent:
         if success_rate > 0.99:
                 self.early_stop = True
         
-    def select_action(self, state, deterministic=False):
+    def take_action(self, state, deterministic=False):
         eps_threshold = self.epsilon_min + (self.epsilon_start - self.epsilon_min) * \
                         np.exp(-1.0 * self.train_steps / self.epsilon_decay)
         self.train_steps += 1

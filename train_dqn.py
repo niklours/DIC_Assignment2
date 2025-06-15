@@ -43,7 +43,7 @@ def main():
         steps = 0
 
         for step in range(args.steps):
-            action_idx = agent.select_action(state)
+            action_idx = agent.take_action(state)
 
             with torch.no_grad():
                 state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(agent.device)

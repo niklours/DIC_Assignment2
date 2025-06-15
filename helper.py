@@ -52,7 +52,7 @@ def eval_agent(env, agent, args,avg_q_values):
     reward_list = []
 
     while not done and steps < args.steps:
-        action_idx = agent.select_action(state, deterministic=True)
+        action_idx = agent.take_action(state, deterministic=True)
         reward = env.step_with_reward(action_idx, step_size=0.2, sub_step=0.05)
         state = env.get_state_vector()
         done = env.is_task_complete()
