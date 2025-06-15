@@ -52,6 +52,7 @@ class DQNAgent:
         self.epsilon_decay = 0.995  
         self.train_steps = 0
         self.greedy_bias = 0.8
+        self.tol = tol
         self.success_history = deque(maxlen=tol)  
         self.early_stop = False
 
@@ -59,10 +60,13 @@ class DQNAgent:
     def update_success(self, done):
         self.success_history.append(done)
         success_rate = sum(self.success_history) / len(self.success_history)
-
+        
+        if len(self.success_history) <= self.tol/2:
+            return
   
         if success_rate > 0.95:
                 self.early_stop = True
+        
     def select_action(self, state, deterministic=False):
         eps_threshold = self.epsilon_min + (self.epsilon_start - self.epsilon_min) * \
                         np.exp(-1.0 * self.train_steps / self.epsilon_decay)

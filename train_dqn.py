@@ -10,34 +10,21 @@ import os
 import numpy as np
 from datetime import datetime
 import pandas as pd
-from helper import eval_agent
+from helper import eval_agent,setup_env,setup_env_hard
 
 directions = ['up', 'down', 'left', 'right', 'up_left', 'up_right', 'down_left', 'down_right']
 
-def setup_env():
-    world = ContinuousSpace(width=11.0, height=11.0, wall_size=1.0)
-    world.add_object(5.0, 5.0, 1.0, "target")
-    obstacle_coords = [
-        (3.0, 3.0, 3.2, 3.2),
-        (3.0, 2.3, 3.2, 2.4),
-        (7.0, 7.0, 8.0, 8.0),     
-        (2.0, 6.0, 3.5, 7.0),     
-    ]
-    for x1, y1, x2, y2 in obstacle_coords:
-        world.add_rectangle_object(x1, y1, x2, y2, size=1.0, obj_type="obstacle")
 
-
-    world.place_agent(2.0, 2.0, 0.6)
-
-    world.place_agent(2.0, 2.0, 0.6)
-    return world
 
 def main():
     parser = argparse.ArgumentParser(description="Train DQN agent in ContinuousSpace environment.")
     parser.add_argument("--episodes", type=int, default=100, help="Number of training episodes.")
     parser.add_argument("--steps", type=int, default=100, help="Max steps per episode.")
     parser.add_argument("--sa", action="store_true", help="Enable Strategic Adaptation.")
+    parser.add_argument("--br", type=int, default=4, help="Number of brackets for SA.")
     parser.add_argument("--tol",type=int, default=30, help="Stopping criterion sucess history size.")
+    parser.add_argument("--env",type=int, default=0, help="Which of the 2 enviroment functions to use 0 for easy, 1 for hard.")
+
     args = parser.parse_args()
 
     state_dim = 7
@@ -47,7 +34,10 @@ def main():
 
 
     for episode in range(args.episodes):
-        env = setup_env()
+        if args.env == 0:
+            env = setup_env()
+        else:
+            env = setup_env_hard()
         state = env.get_state_vector()
         total_reward = 0
 
@@ -67,12 +57,13 @@ def main():
                 break
 
         completed_flags.append(done)
-        agent.update_success(done)  
+        if episode >=args.episodes//4:
+            agent.update_success(done)  
 
-        print(f"[Episode {episode+1}] Total reward: {total_reward:.2f}, Epsilon: {agent.epsilon:.2f}")
+        print(f"[Episode {episode+1}] Total reward: {total_reward:.2f}| Success: {done}")
 
-        if args.sa and (episode + 1) % (args.episodes // 4) == 0:
-            recent = completed_flags[-(args.episodes // 4):]
+        if args.sa and (episode + 1) % (args.episodes // args.br) == 0:
+            recent = completed_flags
             if not any(recent):
                 print("No success. Restarting agent and continuing.")
                 agent = DQNAgent(state_dim, action_dim,args.tol)  
@@ -86,7 +77,10 @@ def main():
         if agent.q_stable:
             print(f"\nEarly stopping triggered at episode {episode+1} due to Q-value convergence.\n")
     
-    env = setup_env()
+    if args.env == 0:
+        env = setup_env()
+    else:
+        env = setup_env_hard()
     eval_agent(env, agent, args)
 
 
