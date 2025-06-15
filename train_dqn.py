@@ -29,10 +29,9 @@ def main():
 
     state_dim = 7
     action_dim = len(directions)
-    agent = DQNAgent(state_dim, action_dim,args.tol)
+    agent = DQNAgent(state_dim, action_dim, args.tol)
     completed_flags = []
-
-
+    avg_q_values = []
     for episode in range(args.episodes):
         if args.env == 0:
             env = setup_env()
@@ -40,9 +39,18 @@ def main():
             env = setup_env_hard()
         state = env.get_state_vector()
         total_reward = 0
+        q_sum = 0.0
+        steps = 0
 
         for step in range(args.steps):
             action_idx = agent.select_action(state)
+
+            with torch.no_grad():
+                state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(agent.device)
+                q_val = agent.model(state_tensor).max().item()
+                q_sum += q_val
+                steps += 1
+
             reward = env.step_with_reward(action_idx, step_size=0.2, sub_step=0.05)
             next_state = env.get_state_vector()
             done = env.is_task_complete()
@@ -57,10 +65,14 @@ def main():
                 break
 
         completed_flags.append(done)
-        if episode >=args.episodes//4:
-            agent.update_success(done)  
+        
 
-        print(f"[Episode {episode+1}] Total reward: {total_reward:.2f}| Success: {done}")
+        agent.update_success(done)
+
+        avg_q_val = q_sum / steps if steps > 0 else 0.0
+        avg_q_values.append(avg_q_val)
+
+        print(f"[Episode {episode+1}] Total reward: {total_reward:.2f}, Epsilon: {agent.epsilon:.2f} | Success: {done}")
 
         if args.sa and (episode + 1) % (args.episodes // args.br) == 0:
             recent = completed_flags
@@ -73,15 +85,16 @@ def main():
         if agent.early_stop:
             print(f"\nEarly stopping triggered at episode {episode+1} due to consistent success.\n")
             break
-        
-        if agent.q_stable:
-            print(f"\nEarly stopping triggered at episode {episode+1} due to Q-value convergence.\n")
+
+
     
+
     if args.env == 0:
         env = setup_env()
     else:
         env = setup_env_hard()
-    eval_agent(env, agent, args)
+    
+    eval_agent(env, agent, args,avg_q_values)
 
 
 if __name__ == "__main__":

@@ -48,11 +48,12 @@ class DQNAgent:
 
         self.epsilon = 1.0
         self.epsilon_start = 1.0
-        self.epsilon_min = 0.1
-        self.epsilon_decay = 0.995  
+        self.epsilon_min = 0.01
+        self.epsilon_decay = 0.9995  
         self.train_steps = 0
         self.greedy_bias = 0.8
         self.tol = tol
+        self.q_value_diffs_all=[]
         self.success_history = deque(maxlen=tol)  
         self.early_stop = False
 
@@ -64,7 +65,7 @@ class DQNAgent:
         if len(self.success_history) <= self.tol/2:
             return
   
-        if success_rate > 0.95:
+        if success_rate > 0.99:
                 self.early_stop = True
         
     def select_action(self, state, deterministic=False):
@@ -125,16 +126,17 @@ class DQNAgent:
             new_q_values = self.model(states)
             diff = torch.mean((prev_q_values - new_q_values) ** 2).item()
             self.q_value_diffs.append(diff)
+            self.q_value_diffs_all.append(diff)
+
             if len(self.q_value_diffs) > 10:
                 self.q_value_diffs.pop(0)
                 avg_q_change = sum(self.q_value_diffs) / len(self.q_value_diffs)
-
                 self.q_stable = avg_q_change < 1e-4
 
         self.train_steps += 1
         self.epsilon *= self.epsilon_decay
         if self.epsilon <= self.epsilon_min + 1e-4:
-            self.epsilon = self.epsilon_start
+            self.epsilon = self.epsilon_min
 
         self.soft_update()
 

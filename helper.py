@@ -7,7 +7,7 @@ from datetime import datetime
 from img_gen import get_grid_image  
 from new_environment import ContinuousSpace  
 
-
+import numpy as np
 def setup_env():
     world = ContinuousSpace(width=11.0, height=11.0, wall_size=1.0)
     world.add_object(5.0, 5.0, 1.0, "target")
@@ -43,7 +43,7 @@ def setup_env_hard():
     return world
 
 
-def eval_agent(env, agent, args):
+def eval_agent(env, agent, args,avg_q_values):
     state = env.get_state_vector()
     done = False
     total_reward = 0
@@ -115,5 +115,23 @@ def eval_agent(env, agent, args):
         "path_efficiency": efficiency,
         "steps_taken": steps
     }
+    q_vals = np.array(avg_q_values)
+    q_norm = (q_vals - q_vals.min()) / (q_vals.max() - q_vals.min() + 1e-8)
+
+    plt.figure(figsize=(8, 4))
+    plt.plot(q_norm, label="Normalized Avg Q-value", color="blue", marker='o', linestyle='-', markersize=3)
+    plt.title("Normalized Q-value per Episode")
+    plt.xlabel("Episode")
+    plt.ylabel("Q-value (Normalized)")
+    plt.grid(True)
+    plt.legend()
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir = os.path.join("logs", folder_name)
+    os.makedirs(log_dir, exist_ok=True)
+
+    q_plot_path = os.path.join(log_dir, "q_convergence_plot.png")
+    plt.savefig(q_plot_path)
+    plt.close()
     csv_path = os.path.join(log_dir, "dqn_metrics.csv")
     pd.DataFrame([metrics]).to_csv(csv_path, index=False)

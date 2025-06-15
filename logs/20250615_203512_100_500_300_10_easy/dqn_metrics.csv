@@ -1,0 +1,2 @@
+total_reward,average_q_value,discounted_return,path_efficiency,steps_taken
+981.978650771381,595.5959510803223,286.3077855394794,0.7555127809312875,24
