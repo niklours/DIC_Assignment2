@@ -2,10 +2,14 @@ import argparse
 import matplotlib.pyplot as plt
 from img_gen import get_grid_image
 from new_environment import ContinuousSpace  
-from agents.dqn_agent import DQNAgent  
+from agents.dqn_agent import DQNAgent
+from agents.ppo_agent import PPOAgent, Memory
 import sys
 import os
 import numpy as np
+from torch.distributions import Categorical
+import torch
+import torch.nn as nn
 directions = ['up', 'down', 'left', 'right', 'up_left', 'up_right', 'down_left', 'down_right']
 
 def setup_env():
@@ -24,32 +28,39 @@ def setup_env():
     world.place_agent(2.0, 2.0, 0.6)
     return world
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Train DQN agent in ContinuousSpace environment.")
-    parser.add_argument("--episodes", type=int, default=100, help="Number of training episodes.")
+    parser = argparse.ArgumentParser(description="Train PPO agent in ContinuousSpace environment.")
+    parser.add_argument("--episodes", type=int, default=500, help="Number of training episodes.")
     parser.add_argument("--steps", type=int, default=100, help="Max steps per episode.")
-    parser.add_argument("--sa", action="store_true", help="Enable Strategic Adaptation.")
     args = parser.parse_args()
 
     state_dim = 7
     action_dim = len(directions)
-    agent = DQNAgent(state_dim, action_dim)
+    agent = PPOAgent(state_dim, action_dim)
+    memory = Memory()
     completed_flags = []
     rewards_list = []
 
+    update_interval = 5  # PPO update every 5 episodes
+
     for episode in range(args.episodes):
-        env = setup_env() # reseting agent
+        env = setup_env()
         state = env.get_state_vector()
         total_reward = 0
 
         for step in range(args.steps):
-            action_idx = agent.select_action(state)
+            action_idx, logprob = agent.select_action(state)
             reward = env.step_with_reward(action_idx, step_size=0.2, sub_step=0.05)
             next_state = env.get_state_vector()
             done = env.is_task_complete()
 
-            agent.store(state, action_idx, reward, next_state, done)
-            agent.train_step()
+            memory.states.append(state)
+            memory.actions.append(action_idx)
+            memory.logprobs.append(logprob)
+            memory.rewards.append(reward)
+            memory.dones.append(done)
+            #agent.store(state, action_idx, reward, next_state, done)
 
             state = next_state
             total_reward += reward
@@ -57,29 +68,32 @@ def main():
                 break
 
         completed_flags.append(done)
-        rewards_list.append(total_reward) 
-        print(f"[Episode {episode+1}] Total reward: {total_reward:.2f}, Epsilon: {agent.epsilon:.2f}")
+        rewards_list.append(total_reward)
 
-        if args.sa and (episode + 1) % (args.episodes // 4) == 0:
-            recent = completed_flags[-(args.episodes // 4):]
-            if not any(recent):
-                print("No success. Restarting agent and continuing.")
-                agent = DQNAgent(state_dim, action_dim)
-                completed_flags = []  
+        if (episode + 1) % update_interval == 0:
+            returns = memory.compute_returns(agent.gamma)
+            memory_dict = {
+                'states': memory.states,
+                'actions': memory.actions,
+                'logprobs': memory.logprobs,
+                'returns': returns
+            }
+            agent.update(memory_dict)
+            memory.clear()
 
-        if agent.q_stable:
-            print(f"\nEarly stopping triggered at episode {episode+1} due to Q-value convergence.\n")
-            break
-    max_rew=-(np.inf)
-    
+        print(f"[Episode {episode+1}] Total reward: {total_reward:.2f}")
+
+    max_rew = -(np.inf)
     for _ in range(1):
-        agent.epsilon = 0.0
         env = setup_env()
         state = env.get_state_vector()
         total_reward = 0
         steps = 0
         while not env.is_task_complete() and steps < args.steps:
-            action_idx = agent.select_action(state, deterministic=True)
+            state_tensor = torch.FloatTensor(state).unsqueeze(0).to(agent.device)
+            logits, _ = agent.policy(state_tensor)
+            action_idx = torch.argmax(logits, dim=-1).item()
+
             reward = env.step_with_reward(action_idx, step_size=0.2, sub_step=0.05)
             state = env.get_state_vector()
             total_reward += reward
@@ -89,12 +103,12 @@ def main():
         if total_reward > max_rew:
             max_rew = total_reward
             best_env = env
+
     plt.imshow(get_grid_image(best_env))
     plt.title("Final Path After Training")
     plt.axis("off")
     plt.show()
 
-    import seaborn as sns
     plt.figure(figsize=(8,5))
     sns.violinplot(y=rewards_list)
     plt.title("Training Reward Distribution (Violin Plot)")
@@ -104,3 +118,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
