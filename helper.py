@@ -86,8 +86,8 @@ def eval_agent(env, agent, args,avg_q_values,success_rate,avg_step):
     print(f"Discounted return: {discounted_return:.2f}")
     print(f"Path efficiency: {efficiency:.2f}")
     print(f"Steps taken: {steps}")
-    print(f"Success rate: {success_rate:.2f}")
-    print(f"Average steps in successful episodes: {avg_step:.2f}")
+    print(f"Success rate during training: {success_rate:.2f}")
+    print(f"Average steps in successful episodes during training: {avg_step:.2f}")
     print("==========================")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if args.env == 0:
