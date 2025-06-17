@@ -22,7 +22,7 @@ def main():
     parser.add_argument("--steps", type=int, default=100, help="Max steps per episode.")
     parser.add_argument("--sa", action="store_true", help="Enable Strategic Adaptation.")
     parser.add_argument("--br", type=int, default=4, help="Number of brackets for SA.")
-    parser.add_argument("--tol",type=int, default=30, help="Stopping criterion sucess history size.")
+    parser.add_argument("--tol",type=int, default=300, help="Stopping criterion sucess history size.")
     parser.add_argument("--env",type=int, default=0, help="Which of the 2 enviroment functions to use 0 for easy, 1 for hard.")
 
     args = parser.parse_args()
