@@ -43,7 +43,7 @@ def setup_env_hard():
     return world
 
 
-def eval_agent(env, agent, args,avg_q_values):
+def eval_agent(env, agent, args,avg_q_values,success_rate,avg_step):
     state = env.get_state_vector()
     done = False
     total_reward = 0
@@ -86,6 +86,8 @@ def eval_agent(env, agent, args,avg_q_values):
     print(f"Discounted return: {discounted_return:.2f}")
     print(f"Path efficiency: {efficiency:.2f}")
     print(f"Steps taken: {steps}")
+    print(f"Success rate: {success_rate:.2f}")
+    print(f"Average steps in successful episodes: {avg_step:.2f}")
     print("==========================")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if args.env == 0:
@@ -113,7 +115,10 @@ def eval_agent(env, agent, args,avg_q_values):
         "average_q_value": avg_q_value,
         "discounted_return": discounted_return,
         "path_efficiency": efficiency,
-        "steps_taken": steps
+        "steps_taken": steps,
+        "success_rate": success_rate,
+        "average_steps_successful_episodes": avg_step,
+
     }
     q_vals = np.array(avg_q_values)
     q_norm = (q_vals - q_vals.min()) / (q_vals.max() - q_vals.min() + 1e-8)

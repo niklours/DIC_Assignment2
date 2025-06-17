@@ -32,6 +32,9 @@ def main():
     agent = DQNAgent(state_dim, action_dim, args.tol)
     completed_flags = []
     avg_q_values = []
+    sucess_rate=0
+    sucess_episodes=0
+    avg_step=0
     for episode in range(args.episodes):
         if args.env == 0:
             env = setup_env()
@@ -62,6 +65,9 @@ def main():
             total_reward += reward
 
             if done:
+                sucess_episodes += 1
+                sucess_rate+=1
+                avg_step+=step
                 break
 
         completed_flags.append(done)
@@ -94,7 +100,7 @@ def main():
     else:
         env = setup_env_hard()
     
-    eval_agent(env, agent, args,avg_q_values)
+    eval_agent(env, agent, args,avg_q_values,sucess_rate/args.episodes,avg_step/sucess_episodes)
 
 
 if __name__ == "__main__":
