@@ -149,17 +149,18 @@ class ContinuousSpace:
                 target_detected = obj
                 break
 
-        if target_detected:
-            tx, ty = target_detected["position"]
-            dx = (tx - ax) / self.width
-            dy = (ty - ay) / self.height
-            dist = math.hypot(tx - ax, ty - ay)
-            max_dist = math.hypot(self.width, self.height)
-            norm_dist = dist / max_dist
-        else:
-            dx = dy = 0.0
-            norm_dist = 1.0  
-
+        # if target_detected:
+        #     tx, ty = target_detected["position"]
+        #     dx = (tx - ax) / self.width
+        #     dy = (ty - ay) / self.height
+        #     dist = math.hypot(tx - ax, ty - ay)
+        #     max_dist = math.hypot(self.width, self.height)
+        #     norm_dist = dist / max_dist
+        # else:
+        #     dx = dy = 0.0
+        #     norm_dist = 1.0  
+        dx = dy = 0.0
+        norm_dist = 1.0  
         near_obstacles = sum(
             1 for obj in self.objects
             if obj["type"] == self.objects_map["obstacle"]
