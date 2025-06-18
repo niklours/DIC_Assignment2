@@ -1,15 +1,10 @@
 import argparse
 import matplotlib.pyplot as plt
 from img_gen import get_grid_image
-from new_environment import ContinuousSpace  
+from new_environment import ContinuousSpace
+import numpy as np
 from agents.dqn_agent import DQNAgent
 from agents.DuelingDQN_agent import DuelingDQNAgent
-import sys
-import os
-import numpy as np
-
-
-
 
 directions = ['up', 'down', 'left', 'right', 'up_left', 'up_right', 'down_left', 'down_right']
 
@@ -46,7 +41,6 @@ def main():
         from agents.dqn_agent import DQNAgent
         agent_class = DQNAgent
     else:
-        from agents.DuelingDQN_agent import DuelingDQNAgent
         agent_class = DuelingDQNAgent
 
     agent = agent_class(state_dim, action_dim)
