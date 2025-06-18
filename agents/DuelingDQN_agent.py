@@ -10,21 +10,26 @@ import numpy as np
 class DuelingDQN(nn.Module):
     def __init__(self, state_size, action_size):
         super(DuelingDQN, self).__init__()
-        self.fc1 = nn.Linear(state_size, 128)
-        self.fc2 = nn.Linear(128, 128)
+        self.feature = nn.Sequential(
+            nn.Linear(state_size, 256), nn.ReLU(),
+            nn.Linear(256, 128), nn.ReLU()
+        )
 
-        self.value_stream = nn.Linear(128, 1)
-        self.advantage_stream = nn.Linear(128, action_size)
+        self.value_stream = nn.Sequential(
+            nn.Linear(128, 64), nn.ReLU(),
+            nn.Linear(64, 1)
+        )
+        self.advantage_stream = nn.Sequential(
+            nn.Linear(128, 64), nn.ReLU(),
+            nn.Linear(64, action_size)
+        )
 
     def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-
+        x = self.feature(x)
         value = self.value_stream(x)
         advantage = self.advantage_stream(x)
+        return value + advantage - advantage.mean(dim=1, keepdim=True)
 
-        q_vals = value + advantage - advantage.mean(dim=1, keepdim=True)
-        return q_vals
 
 
 # Inherit DQNAgent and just replace model init
