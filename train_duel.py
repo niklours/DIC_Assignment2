@@ -26,7 +26,7 @@ def setup_env():
 
 def main():
     parser = argparse.ArgumentParser(description="Train Dueling DQN agent in ContinuousSpace environment.")
-    parser.add_argument("--episodes", type=int, default=100, help="Number of training episodes.")
+    parser.add_argument("--episodes", type=int, default=150, help="Number of training episodes.")
     parser.add_argument("--steps", type=int, default=100, help="Max steps per episode.")
     parser.add_argument("--sa", action="store_true", help="Enable Strategic Adaptation.")
     args = parser.parse_args()

@@ -4,7 +4,6 @@ import torch.optim as optim
 import numpy as np
 import random
 from collections import deque
-import torch.nn.functional as F
 
 class DQN(nn.Module):
     def __init__(self, input_dim, output_dim):
@@ -18,20 +17,6 @@ class DQN(nn.Module):
 
     def forward(self, x):
         return self.net(x)
-    
-# class DQN(nn.Module):
-#     def __init__(self, state_size, action_size, hidden_size=128):
-#         super(DQN, self).__init__()
-#         self.fc1 = nn.Linear(state_size, hidden_size)
-#         self.fc2 = nn.Linear(hidden_size, hidden_size)
-#         self.fc3 = nn.Linear(hidden_size, hidden_size)
-#         self.out = nn.Linear(hidden_size, action_size)
-
-#     def forward(self, state):
-#         x = F.relu(self.fc1(state))
-#         x = F.relu(self.fc2(x))
-#         x = F.relu(self.fc3(x))
-#         return self.out(x)
 
 class ReplayBuffer:
     def __init__(self, capacity=10000):
@@ -43,20 +28,19 @@ class ReplayBuffer:
     def sample(self, batch_size):
         batch = random.sample(self.buffer, batch_size)
         return map(np.array, zip(*batch))
-  
 
     def __len__(self):
         return len(self.buffer)
 
 class DQNAgent:
-    def __init__(self, state_dim, action_dim, gamma=0.95, lr=1e-3, batch_size=32):
+    def __init__(self, state_dim, action_dim,tol, gamma=0.95, lr=1e-3, batch_size=32):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = DQN(state_dim, action_dim).to(self.device)
+        self.policy = DQN(state_dim, action_dim).to(self.device)
         self.target_model = DQN(state_dim, action_dim).to(self.device)
-        self.target_model.load_state_dict(self.model.state_dict())
+        self.target_model.load_state_dict(self.policy.state_dict())
         self.q_value_diffs = []  
         self.q_stable = False
-        self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=lr)
         self.memory = ReplayBuffer()
         self.gamma = gamma
         self.batch_size = batch_size
@@ -64,21 +48,27 @@ class DQNAgent:
 
         self.epsilon = 1.0
         self.epsilon_start = 1.0
-        self.epsilon_min = 0.1
-        self.epsilon_decay = 0.995  
+        self.epsilon_min = 0.01
+        self.epsilon_decay = 0.9995  
         self.train_steps = 0
         self.greedy_bias = 0.8
+        self.tol = tol
+        self.q_value_diffs_all=[]
+        self.success_history = deque(maxlen=tol)  
+        self.early_stop = False
+
+
+    def update_success(self, done):
+        self.success_history.append(done)
+        success_rate = sum(self.success_history) / len(self.success_history)
         
+        if len(self.success_history) <= self.tol/2:
+            return
+  
+        if success_rate > 0.99:
+                self.early_stop = True
         
-    # def select_action(self, state, deterministic=False):
-    #     if not deterministic and random.random() < self.epsilon:
-    #         return random.randint(0, self.action_dim - 1)
-    #     state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
-    #     with torch.no_grad():
-    #         q_vals = self.model(state)
-    #     return q_vals.argmax().item()
-    
-    def select_action(self, state, deterministic=False):
+    def take_action(self, state, deterministic=False):
         eps_threshold = self.epsilon_min + (self.epsilon_start - self.epsilon_min) * \
                         np.exp(-1.0 * self.train_steps / self.epsilon_decay)
         self.train_steps += 1
@@ -87,23 +77,21 @@ class DQNAgent:
             if random.random() < self.greedy_bias:
                 state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
                 with torch.no_grad():
-                    q_vals = self.model(state_tensor)
+                    q_vals = self.policy(state_tensor)
                 return q_vals.argmax().item()
             else:
                 return random.randint(0, self.action_dim - 1)
         else:
             state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
             with torch.no_grad():
-                q_vals = self.model(state_tensor)
+                q_vals = self.policy(state_tensor)
             return q_vals.argmax().item()
 
-    
-    # Storing previous experience
     def store(self, state, action, reward, next_state, done):
         self.memory.push((state, action, reward, next_state, done))
 
     def soft_update(self, tau=0.005):
-        for target_param, param in zip(self.target_model.parameters(), self.model.parameters()):
+        for target_param, param in zip(self.target_model.parameters(), self.policy.parameters()):
             target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
 
     def train_step(self):
@@ -119,14 +107,14 @@ class DQNAgent:
         dones = torch.tensor(dones, dtype=torch.float32).to(self.device)
 
         with torch.no_grad():
-            prev_q_values = self.model(states).clone()
+            prev_q_values = self.policy(states).clone()
 
         with torch.no_grad():
-            next_actions = self.model(next_states).argmax(dim=1, keepdim=True)
+            next_actions = self.policy(next_states).argmax(dim=1, keepdim=True)
             next_q = self.target_model(next_states).gather(1, next_actions).squeeze()
         q_target = rewards + self.gamma * (1 - dones) * next_q
 
-        q_values = self.model(states)
+        q_values = self.policy(states)
         q_pred = q_values.gather(1, actions.unsqueeze(1)).squeeze()
 
         loss = nn.MSELoss()(q_pred, q_target.detach())
@@ -135,18 +123,19 @@ class DQNAgent:
         self.optimizer.step()
 
         with torch.no_grad():
-            new_q_values = self.model(states)
+            new_q_values = self.policy(states)
             diff = torch.mean((prev_q_values - new_q_values) ** 2).item()
             self.q_value_diffs.append(diff)
-            if len(self.q_value_diffs) > 50:
+            self.q_value_diffs_all.append(diff)
+
+            if len(self.q_value_diffs) > 10:
                 self.q_value_diffs.pop(0)
                 avg_q_change = sum(self.q_value_diffs) / len(self.q_value_diffs)
-
                 self.q_stable = avg_q_change < 1e-4
 
         self.train_steps += 1
         self.epsilon *= self.epsilon_decay
         if self.epsilon <= self.epsilon_min + 1e-4:
-            self.epsilon = self.epsilon_start
+            self.epsilon = self.epsilon_min
 
         self.soft_update()
