@@ -181,37 +181,107 @@ class ContinuousSpace:
             near_obstacles,
             loop_signal
         ]
-    def step_with_reward(self, action_idx, step_size=0.5, sub_step=0.1):
+
+    def step_with_reward(self, action_idx, step_size=0.5, sub_step=0.1, reward_mode="default"):
         if self.agent is None:
-            return -10.0  # Stronger penalty if agent not initialized
+            return -10.0  # harsh penalty if agent is uninitialized
 
         (x, y), _ = self.agent
-        reward = -0.2  # small time penalty
 
-        if self.target:
-            prev_dist = math.hypot(x - self.target[0], y - self.target[1])
-        else:
-            prev_dist = 0
+        # Measure distance to target before moving
+        prev_dist = math.hypot(x - self.target[0], y - self.target[1]) if self.target else 0
 
         moved = self.move_agent_direction(action_idx, step_size, sub_step)
-
-        if not moved:
-            reward -= 2.0  
-
-        if self.collect_target():
-            reward += 20.0
-
-        if self.is_task_complete():
-            reward += 1000.0
-
         (nx, ny), _ = self.agent
-        if self.target:
-            new_dist = math.hypot(nx - self.target[0], ny - self.target[1])
-            delta = prev_dist - new_dist
-            if delta > 0.01:
-                reward += delta*5.0  # stronger reward
-            else:
-                reward -= 1.0
+
+        # Track previous positions for loop detection
+        rounded_pos = (round(nx, 1), round(ny, 1))
+        self.prev_positions.append(rounded_pos)
+        if len(self.prev_positions) > 100:
+            self.prev_positions.pop(0)
+        loop_count = self.prev_positions.count(rounded_pos)
+        loop_signal = loop_count / len(self.prev_positions) if self.prev_positions else 0.0
+
+        # Detect nearby objects within a radius
+        nearby = self.detect_objects(radius=2.0)
+
+        if reward_mode == "default":
+            reward = -0.2  # small time penalty to encourage faster solutions
+
+            if not moved:
+                reward -= 2.0  # discourage trying invalid or blocked actions
+
+            if self.collect_target():
+                reward += 20.0
+
+            if self.is_task_complete():
+                reward += 1000.0
+
+            if self.target:
+                new_dist = math.hypot(nx - self.target[0], ny - self.target[1])
+                delta = prev_dist - new_dist
+                if delta > 0.01:
+                    reward += delta * 5.0  # reward for progress toward target
+                else:
+                    reward -= 1.0  # penalize stalling or regressing
+
+            for obj in nearby:
+                if obj["type"] == self.objects_map["target"]:
+                    reward += 2.0  # bonus for being near the target
+                elif obj["type"] == self.objects_map["obstacle"]:
+                    reward -= 1.0  # penalty for being close to obstacles
+
+            if loop_signal > 0.1:
+                reward -= loop_signal * 10.0  # strong penalty for repeating positions
+
+            return reward
+
+
+        elif reward_mode == "v2":
+
+            reward = -0.2
+
+            if not moved:
+                reward -= 1.0  # light penalty for failed moves
+
+            if self.collect_target():
+                reward += 20.0
+
+            if self.is_task_complete():
+                reward += 750.0
+
+            if self.target:
+
+                new_dist = math.hypot(nx - self.target[0], ny - self.target[1])
+
+                delta = prev_dist - new_dist
+
+                if delta > 0.005:
+
+                    reward += delta * 3.5
+
+                else:
+
+                    reward -= 0.2
+
+            for obj in nearby:
+
+                if obj["type"] == self.objects_map["target"]:
+
+                    reward += 0.5  # mild reward for being near target
+
+                elif obj["type"] == self.objects_map["obstacle"]:
+
+                    if math.hypot(nx - obj["x"], ny - obj["y"]) < 1.0:
+                        reward -= 0.3  # small deterrent for staying too close to obstacles
+
+            if loop_signal > 0.1:
+                reward -= loop_signal * 3.0  # moderate loop penalty
+
+            return reward
+
+        else:
+            raise ValueError(f"Unknown reward_mode: {reward_mode}")
 
         # Proximity detection
         sensor_radius = 2.0
