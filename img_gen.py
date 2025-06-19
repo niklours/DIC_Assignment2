@@ -39,3 +39,4 @@ def get_grid_image(self, resolution=64):
 
     return img
 
+

@@ -140,24 +140,33 @@ class ContinuousSpace:
 
         (ax, ay), _ = self.agent
         inv = self.inventory
+        sensor_radius = 4.0
 
-        if self.target:
-            tx, ty = self.target
-        else:
-            tx, ty = 0.0, 0.0
+        nearby = self.detect_objects(sensor_radius)
+        target_detected = None
+        for obj in nearby:
+            if obj["type"] == self.objects_map["target"]:
+                target_detected = obj
+                break
 
-        dx = (tx - ax) / self.width
-        dy = (ty - ay) / self.height
-        dist = math.hypot(tx - ax, ty - ay)
-        max_dist = math.hypot(self.width, self.height)
-        norm_dist = dist / max_dist
-
+        # if target_detected:
+        #     tx, ty = target_detected["position"]
+        #     dx = (tx - ax) / self.width
+        #     dy = (ty - ay) / self.height
+        #     dist = math.hypot(tx - ax, ty - ay)
+        #     max_dist = math.hypot(self.width, self.height)
+        #     norm_dist = dist / max_dist
+        # else:
+        #     dx = dy = 0.0
+        #     norm_dist = 1.0  
+        dx = dy = 0.0
+        norm_dist = 1.0  
         near_obstacles = sum(
             1 for obj in self.objects
             if obj["type"] == self.objects_map["obstacle"]
             and math.hypot(ax - obj["x"], ay - obj["y"]) < 1.5
         )
-        near_obstacles = min(near_obstacles, 5) / 5.0  
+        near_obstacles = min(near_obstacles, 5) / 5.0
 
         rounded_pos = (round(ax, 1), round(ay, 1))
         loop_count = self.prev_positions.count(rounded_pos)
@@ -166,21 +175,18 @@ class ContinuousSpace:
         return [
             ax / self.width,
             ay / self.height,
-            inv,
-            tx / self.width,
-            ty / self.height,
             dx,
             dy,
             norm_dist,
             near_obstacles,
-            loop_signal,
+            loop_signal
         ]
     def step_with_reward(self, action_idx, step_size=0.5, sub_step=0.1):
         if self.agent is None:
-            return -5.0
+            return -10.0  # Stronger penalty if agent not initialized
 
         (x, y), _ = self.agent
-        reward = -0.5  
+        reward = -0.2  # small time penalty
 
         if self.target:
             prev_dist = math.hypot(x - self.target[0], y - self.target[1])
@@ -190,10 +196,10 @@ class ContinuousSpace:
         moved = self.move_agent_direction(action_idx, step_size, sub_step)
 
         if not moved:
-            reward -= 3.0
+            reward -= 2.0  
 
         if self.collect_target():
-            reward += 10.0
+            reward += 20.0
 
         if self.is_task_complete():
             reward += 1000.0
@@ -203,17 +209,30 @@ class ContinuousSpace:
             new_dist = math.hypot(nx - self.target[0], ny - self.target[1])
             delta = prev_dist - new_dist
             if delta > 0.01:
-                reward += delta * 3.0
+                reward += delta*5.0  # stronger reward
             else:
-                reward -= 0.5
+                reward -= 1.0
 
-        sensor_radius = 1.5
-        nearby = self.detect_objects(sensor_radius)
+        # Proximity detection
+        sensor_radius = 2.0
+        self.bot_radius = 2.0
+        nearby = self.detect_objects(self.bot_radius)
         for obj in nearby:
             if obj["type"] == self.objects_map["target"]:
-                reward += 1.5 
+                reward += 2.0
             elif obj["type"] == self.objects_map["obstacle"]:
                 reward -= 1.0  
+
+        # Loop penalty
+        rounded_pos = (round(nx, 1), round(ny, 1))
+        self.prev_positions.append(rounded_pos)
+        if len(self.prev_positions) > 100:
+            self.prev_positions.pop(0)
+
+        loop_count = self.prev_positions.count(rounded_pos)
+        loop_signal = loop_count / len(self.prev_positions)
+        if loop_signal > 0.1:
+            reward -= loop_signal * 10.0  # stronger loop penalty
 
         return reward
 
