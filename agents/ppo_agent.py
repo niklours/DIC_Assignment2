@@ -5,91 +5,103 @@ import torch.optim as optim
 from agents.base_agent import BaseAgent
 
 class ActorCritic(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_size=64):
+    def __init__(self, state_dim, action_dim, hidden_size=128):
         super().__init__()
         self.shared = nn.Sequential(
             nn.Linear(state_dim, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
             nn.ReLU()
         )
-        self.actor = nn.Sequential(
+        self.policy_head = nn.Sequential(
             nn.Linear(hidden_size, action_dim),
             nn.Softmax(dim=-1)
         )
-        self.critic = nn.Linear(hidden_size, 1)
+        self.value_head = nn.Linear(hidden_size, 1)
 
-    def forward(self, x):
-        shared_out = self.shared(x)
-        probs = self.actor(shared_out)
-        value = self.critic(shared_out)
-        return probs, value
+    def forward(self, state):
+        shared = self.shared(state)
+        return self.policy_head(shared), self.value_head(shared)
+
 
 class PPOAgent(BaseAgent):
-    def __init__(self, state_dim=10, action_dim=8, gamma=0.99, clip_eps=0.2, lr=3e-4, entropy_coef=0.01):
+    def __init__(self, state_dim, action_dim, tol=300, gamma=0.99, lr=3e-4, clip_eps=0.2,
+                 entropy_coef=0.01, value_coef=0.5, batch_size=64, ppo_epochs=4):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.actor_critic = ActorCritic(state_dim, action_dim).to(self.device)
+        self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=lr)
+
         self.gamma = gamma
         self.clip_eps = clip_eps
         self.entropy_coef = entropy_coef
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
-        self.policy = ActorCritic(state_dim, action_dim).to(self.device)
-        self.optimizer = optim.Adam(self.policy.parameters(), lr=lr)
+        self.value_coef = value_coef
+        self.batch_size = batch_size
+        self.ppo_epochs = ppo_epochs
+        self.tol = tol
 
-        # buffers for trajectory
-        self.states = []
-        self.actions = []
-        self.rewards = []
-        self.log_probs = []
-        self.values = []
-        self.dones = []
+        self.reset_buffers()
 
-    def take_action(self, state):
-        state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-        probs, value = self.policy(state)
+    def reset_buffers(self):
+        self.states, self.actions, self.rewards = [], [], []
+        self.log_probs, self.values, self.dones = [], [], []
+
+    def policy(self, state_tensor):
+        """Return only action probabilities for compatibility with helper.py"""
+        probs, _ = self.actor_critic(state_tensor)
+        return probs
+
+    def take_action(self, state, deterministic=False):
+        state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+        probs, value = self.actor_critic(state_tensor)
         dist = torch.distributions.Categorical(probs)
-        action = dist.sample()
-        log_prob = dist.log_prob(action)
+        action = dist.probs.argmax().item() if deterministic else dist.sample().item()
 
         self.states.append(state)
         self.actions.append(action)
-        self.log_probs.append(log_prob)
-        self.values.append(value)
-        return action.item()
+        self.log_probs.append(dist.log_prob(torch.tensor(action).to(self.device)))
+        self.values.append(value.squeeze().item())
+        return action
 
-    def update(self, state, reward, action):
-        self.rewards.append(torch.tensor([reward], dtype=torch.float32).to(self.device))
+    def store_outcome(self, reward, done):
+        self.rewards.append(reward)
+        self.dones.append(done)
 
-    def finish_episode(self):
-        # Compute returns and advantages
-        returns = []
-        G = 0
-        for r in reversed(self.rewards):
-            G = r + self.gamma * G
-            returns.insert(0, G)
-        returns = torch.cat(returns).detach()
-        values = torch.cat(self.values).squeeze()
-        log_probs = torch.cat(self.log_probs)
-        actions = torch.cat(self.actions)
+    def compute_returns_and_advantages(self, next_value=0):
+        values = self.values + [next_value]
+        returns, advantages = [], []
+        gae = 0
+        for step in reversed(range(len(self.rewards))):
+            delta = self.rewards[step] + self.gamma * values[step + 1] * (1 - self.dones[step]) - values[step]
+            gae = delta + self.gamma * self.clip_eps * (1 - self.dones[step]) * gae
+            advantages.insert(0, gae)
+            returns.insert(0, gae + values[step])
+        return returns, advantages
 
-        advantages = returns - values
-        probs, value_estimates = self.policy(torch.cat(self.states).squeeze(1))
-        dist = torch.distributions.Categorical(probs)
-        new_log_probs = dist.log_prob(actions)
-        entropy = dist.entropy().mean()
+    def update(self):
+        states = torch.FloatTensor(self.states).to(self.device)
+        actions = torch.LongTensor(self.actions).to(self.device)
+        old_log_probs = torch.stack(self.log_probs).detach()
+        returns, advantages = self.compute_returns_and_advantages()
+        returns = torch.FloatTensor(returns).to(self.device)
+        advantages = torch.FloatTensor(advantages).to(self.device)
 
-        ratio = (new_log_probs - log_probs.detach()).exp()
-        surr1 = ratio * advantages.detach()
-        surr2 = torch.clamp(ratio, 1 - self.clip_eps, 1 + self.clip_eps) * advantages.detach()
-        policy_loss = -torch.min(surr1, surr2).mean()
-        value_loss = nn.functional.mse_loss(value_estimates.squeeze(), returns)
-        loss = policy_loss + 0.5 * value_loss - self.entropy_coef * entropy
+        for _ in range(self.ppo_epochs):
+            probs, values = self.actor_critic(states)
+            dist = torch.distributions.Categorical(probs)
+            entropy = dist.entropy().mean()
+            new_log_probs = dist.log_prob(actions)
 
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+            ratio = (new_log_probs - old_log_probs).exp()
+            surr1 = ratio * advantages
+            surr2 = torch.clamp(ratio, 1 - self.clip_eps, 1 + self.clip_eps) * advantages
 
-        # Clear memory
-        self.states.clear()
-        self.actions.clear()
-        self.rewards.clear()
-        self.log_probs.clear()
-        self.values.clear()
-        self.dones.clear()
+            policy_loss = -torch.min(surr1, surr2).mean()
+            value_loss = (returns - values.squeeze()).pow(2).mean()
+
+            loss = policy_loss + self.value_coef * value_loss - self.entropy_coef * entropy
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+        self.reset_buffers()
