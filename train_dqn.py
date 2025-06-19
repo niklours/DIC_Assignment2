@@ -92,6 +92,9 @@ def main():
             print(f"\nEarly stopping triggered at episode {episode+1} due to consistent success.\n")
             break
 
+
+    
+
     if args.env == 0:
         env = setup_env()
     else:
