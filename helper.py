@@ -45,6 +45,7 @@ def setup_env_hard():
 
 def eval_agent(env, agent, args,avg_q_values,success_rate,avg_step):
     state = env.get_state_vector()
+    agent.epsilon=0
     done = False
     total_reward = 0
     steps = 0
