@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -6,9 +5,6 @@ import random
 from collections import deque
 import numpy as np
 from agents.dqn_agent import DQNAgent
-
-
-
 
 class DuelingDQN(nn.Module):
     def __init__(self, state_size, action_size):
@@ -42,11 +38,14 @@ class DuelingDQNAgent(DQNAgent):
         self.target_model = DuelingDQN(state_dim, action_dim).to(self.device)
         self.target_model.load_state_dict(self.model.state_dict())
 
-        self.optimizer = optim.Adam(self.model.parameters(), lr=kwargs.get('lr', 1e-3))
+        self.policy = self.model  # for compatibility with code expecting policy
 
+        self.optimizer = optim.Adam(self.model.parameters(), lr=kwargs.get('lr', 1e-3))
         self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=1000, gamma=0.9)
 
-    # override training step to include scheduler
+        self.epsilon_start = kwargs.get('epsilon_start', 1.0)
+        self.epsilon_min = kwargs.get('epsilon_min', 0.01)
+
     def train_step(self):
         if len(self.memory) < self.batch_size:
             return
@@ -71,14 +70,12 @@ class DuelingDQNAgent(DQNAgent):
 
         self.optimizer.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
         self.optimizer.step()
-
-        self.scheduler.step()  # decay learning rate
+        self.scheduler.step()
 
         self.train_steps += 1
-        self.epsilon *= 0.995
-        if self.epsilon <= self.epsilon_min + 1e-4:
-            self.epsilon = self.epsilon_start
-
-        # So that the target network slowly tracks the main network
         self.soft_update()
+
+    def decay_epsilon(self):
+        self.epsilon = max(self.epsilon_min, self.epsilon * 0.995)

@@ -140,3 +140,4 @@ def eval_agent(env, agent, args,avg_q_values,success_rate,avg_step):
     plt.close()
     csv_path = os.path.join(log_dir, "dqn_metrics.csv")
     pd.DataFrame([metrics]).to_csv(csv_path, index=False)
+
