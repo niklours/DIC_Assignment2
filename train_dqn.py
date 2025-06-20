@@ -93,16 +93,44 @@ def main():
             print(f"\nEarly stopping triggered at episode {episode+1} due to consistent success.\n")
             break
 
+    def evaluate_policy(agent, args, env_fn, n_episodes=50):
+        rewards = []
+        discounted_returns = []
+        steps_list = []
+        successes = 0
 
-    
+        for _ in range(n_episodes):
+            env = env_fn()
+            state = env.get_state_vector()
+            done = False
+            ep_reward = 0
+            ep_rewards = []
+            steps = 0
 
-    if args.env == 0:
-        env = setup_env()
-    else:
-        env = setup_env_hard()
-    
-    eval_agent(env, agent, args,avg_q_values,sucess_rate/args.episodes,avg_step/sucess_episodes)
+            while not done and steps < args.steps:
+                action = agent.take_action(state, deterministic=True)
+                reward = env.step_with_reward(action, step_size=0.2, sub_step=0.05)
+                state = env.get_state_vector()
+                done = env.is_task_complete()
+                ep_reward += reward
+                ep_rewards.append(reward)
+                steps += 1
 
+            rewards.append(ep_reward)
+            discounted_returns.append(sum(agent.gamma ** t * r for t, r in enumerate(ep_rewards)))
+            steps_list.append(steps)
+            if done:
+                successes += 1
+
+        print("\n=== Evaluation Summary over", n_episodes, "episodes ===")
+        print(f"Average Total Reward: {np.mean(rewards):.2f} ± {np.std(rewards):.2f}")
+        print(f"Average Discounted Return: {np.mean(discounted_returns):.2f}")
+        print(f"Average Steps Taken: {np.mean(steps_list):.2f}")
+        print(f"Success Rate: {successes / n_episodes:.2f}")
+        print("==========================================================")
+
+    env_fn = setup_env if args.env == 0 else setup_env_hard
+    evaluate_policy(agent, args, env_fn, n_episodes=50)
 
 if __name__ == "__main__":
     main()
