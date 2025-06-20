@@ -8,35 +8,9 @@ import torch.nn.functional as F
 from agents.dqn_agent import DQNAgent
 
 # Dueling Network Architecture
-# class DuelingDQN(nn.Module):
-#     def __init__(self, input_dim, output_dim):
-#         super().__init__()
-#         self.feature = nn.Sequential(
-#             nn.Linear(input_dim, 256), nn.ReLU(),
-#             nn.Linear(256, 128), nn.ReLU(),
-#             nn.Linear(128, 64), nn.ReLU()
-#         )
-#         self.value_stream = nn.Sequential(
-#             nn.Linear(64, 32), nn.ReLU(),
-#             nn.Linear(32, 1)
-#         )
-#         self.advantage_stream = nn.Sequential(
-#             nn.Linear(64, 32), nn.ReLU(),
-#             nn.Linear(32, output_dim)
-#         )
-
-#     def forward(self, x):
-#         x = self.feature(x)
-#         value = self.value_stream(x)
-#         advantage = self.advantage_stream(x)
-#         q_vals = value + (advantage - advantage.mean(dim=1, keepdim=True))
-#         return q_vals
-
-# Duelling Deep Q Network that estimates Value function
 class DuelingDQN(nn.Module):
-    """Light 32‑unit version with dropout (matches original snippet)."""
 
-    def __init__(self, state_dim: int, action_dim: int, dim: int = 32, dropout: float = 0.35) -> None:
+    def __init__(self, state_dim: int, action_dim: int, dim: int = 32, dropout: float = 0.35) :
         super().__init__()
         self.fc1 = nn.Linear(state_dim, dim)
         self.fc2 = nn.Linear(dim, dim)

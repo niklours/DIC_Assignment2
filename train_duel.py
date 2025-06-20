@@ -19,7 +19,7 @@ directions = ['up', 'down', 'left', 'right', 'up_left', 'up_right', 'down_left',
 
 def main():
     parser = argparse.ArgumentParser(description="Train Dueling DQN agent in ContinuousSpace environment.")
-    parser.add_argument("--episodes", type=int, default=210, help="Number of training episodes.")
+    parser.add_argument("--episodes", type=int, default=300, help="Number of training episodes.")
     parser.add_argument("--steps", type=int, default=100, help="Max steps per episode.")
     parser.add_argument("--sa", action="store_true", help="Enable Strategic Adaptation.")
     parser.add_argument("--br", type=int, default=4, help="Number of brackets for SA.")

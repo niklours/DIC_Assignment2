@@ -60,7 +60,7 @@ class PPOAgent:
 
         self.memory = Memory(capacity=10000)
 
-    def select_action(self, state):
+    def take_action(self, state):
         state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
         logits, _ = self.policy(state)
         dist = Categorical(logits=logits)

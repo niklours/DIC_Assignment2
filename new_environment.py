@@ -10,7 +10,7 @@ class ContinuousSpace:
         self.objects = []
         self.agent = None
         self.target = None
-        self.bot_radius = 0.1
+        self.bot_radius = 4.0 
         self.inventory = 0
         self.path = []
 
@@ -140,9 +140,9 @@ class ContinuousSpace:
 
         (ax, ay), _ = self.agent
         inv = self.inventory
-        sensor_radius = 4.0
+        #sensor_radius = 4.0
 
-        target_near, _ = self._target_smell(sensor_radius)
+        target_near, _ = self.target_sense(self.bot_radius)
 
        
         dx = dy = 0.0            
@@ -170,7 +170,7 @@ class ContinuousSpace:
 
         # dx = dy = 0.0
         # norm_dist = 1.0  
-        near_obstacles = sum(
+        near_obstacles = sum(  ## checking for possible obstacles
             1 for obj in self.objects
             if obj["type"] == self.objects_map["obstacle"]
             and math.hypot(ax - obj["x"], ay - obj["y"]) < 1.5
@@ -191,11 +191,10 @@ class ContinuousSpace:
             loop_signal
         ]
     
-    def _target_smell(self, radius: float):
+    def target_sense(self, radius: float):
         """
         Returns a pair of booleans:
             (target_near, obstacle_near)
-        No coordinates, no object types, no counts.
         """
         if self.agent is None:
             return False, False
@@ -219,7 +218,100 @@ class ContinuousSpace:
         return target_near, obstacle_near
 
     
-    # def step_with_reward(self, action_idx, step_size=0.5, sub_step=0.1):
+    
+    ## Attempt for step_with_reward WITHOUT distance information
+    def step_with_reward(self, action_idx, step_size=0.5, sub_step=0.1):
+        if self.agent is None:
+            return -10.0                            
+
+        reward = -0.2                           
+
+        if not self.move_agent_direction(action_idx, step_size, sub_step):
+            reward -= 2.0                           
+
+        if self.collect_target():
+            reward += 20.0
+
+        if self.is_task_complete():
+            reward += 1000.0
+
+        target_near, obstacle_near = self.target_sense(self.bot_radius) 
+        if target_near: # possible target            
+            reward += 5.0
+        elif obstacle_near: # possible obstacle          
+            reward -= 2.0
+        elif self.target is not None: # wandering
+            reward -= 1.0
+
+        # ---------- loop penalty ----------------------------------------
+        (nx, ny), _ = self.agent
+        cell = (round(nx, 1), round(ny, 1))
+        self.prev_positions.append(cell)
+        loop_signal = self.prev_positions.count(cell) / len(self.prev_positions)
+        if loop_signal > 0.1:
+            reward -= loop_signal * 10.0
+
+        return reward
+    
+    # ## Third try
+    # def detect_objects(self, radius: float):
+    #     """Return at most one {'type': …} for each kind detected."""
+    #     if self.agent is None:
+    #         return []
+
+    #     (ax, ay), _ = self.agent
+    #     seen: set[int] = set()
+    #     nearby = []
+    #     for obj in self.objects:
+    #         if obj["type"] in seen:
+    #             continue                 
+    #         if math.hypot(ax - obj["x"], ay - obj["y"]) <= radius:
+    #             nearby.append({"type": obj["type"]})
+    #             seen.add(obj["type"])
+    #             if len(seen) == 2:   
+    #                 break
+    #     return nearby
+
+    ##Second try
+    # def detect_objects(self, radius: float):
+        
+    #     if self.agent is None:
+    #         return []
+
+    #     (ax, ay), _ = self.agent
+    #     nearby = []
+    #     for obj in self.objects:
+    #         if math.hypot(ax - obj["x"], ay - obj["y"]) <= radius:
+    #             nearby.append({"type": obj["type"]})
+    #     return nearby
+
+
+    def add_rectangle_object(self, x1, y1, x2, y2, size: float, obj_type: str):
+        """
+        Adds a filled rectangular area of objects (e.g., obstacles) between (x1, y1) and (x2, y2).
+        The area is filled with `size`-sized square blocks.
+        
+        Args:
+            x1, y1: one corner of the rectangle
+            x2, y2: opposite corner
+            size: size of each square block
+            obj_type: string type like "obstacle"
+        """
+        if obj_type not in self.objects_map:
+            raise ValueError(f"Unknown object type: {obj_type}")
+
+        x_min, x_max = sorted([x1, x2])
+        y_min, y_max = sorted([y1, y2])
+
+        x = x_min
+        while x < x_max:
+            y = y_min
+            while y < y_max:
+                self.add_object(x, y, size, obj_type)
+                y += size
+            x += size
+
+# def step_with_reward(self, action_idx, step_size=0.5, sub_step=0.1):
     #     if self.agent is None:
     #         return -10.0  # Stronger penalty if agent not initialized
 
@@ -279,122 +371,3 @@ class ContinuousSpace:
     #         reward -= loop_signal * 10.0  # stronger loop penalty
 
     #     return reward
-    
-    ## Attempt for step_with_reward to discard distance information
-    def step_with_reward(self, action_idx, step_size=0.5, sub_step=0.1):
-        if self.agent is None:
-            return -10.0                            
-
-        reward = -0.2                           
-
-        if not self.move_agent_direction(action_idx, step_size, sub_step):
-            reward -= 2.0                           
-
-        if self.collect_target():
-            reward += 20.0
-
-        if self.is_task_complete():
-            reward += 1000.0
-
-        # ---------- smell-based shaping ---------------------------------
-        target_near, obstacle_near = self._target_smell(4.0) ## TODO pass the radius as a parameter
-
-        if target_near: # possible target            
-            reward += 5.0
-        elif obstacle_near: # possible obstacle          
-            reward -= 2.0
-        elif self.target is not None: # wandering
-            reward -= 1.0
-
-        # ---------- loop penalty ----------------------------------------
-        (nx, ny), _ = self.agent
-        cell = (round(nx, 1), round(ny, 1))
-        self.prev_positions.append(cell)
-        loop_signal = self.prev_positions.count(cell) / len(self.prev_positions)
-        if loop_signal > 0.1:
-            reward -= loop_signal * 10.0
-
-        return reward
-    
-    ## Third try
-    def detect_objects(self, radius: float):
-        """Return at most one {'type': …} for each kind detected."""
-        if self.agent is None:
-            return []
-
-        (ax, ay), _ = self.agent
-        seen: set[int] = set()
-        nearby = []
-        for obj in self.objects:
-            if obj["type"] in seen:
-                continue                           # already reported that type
-            if math.hypot(ax - obj["x"], ay - obj["y"]) <= radius:
-                nearby.append({"type": obj["type"]})
-                seen.add(obj["type"])
-                if len(seen) == 2:   
-                    break
-        return nearby
-
-    ##Second try
-    # def detect_objects(self, radius: float):
-        
-    #     if self.agent is None:
-    #         return []
-
-    #     (ax, ay), _ = self.agent
-    #     nearby = []
-    #     for obj in self.objects:
-    #         if math.hypot(ax - obj["x"], ay - obj["y"]) <= radius:
-    #             nearby.append({"type": obj["type"]})
-    #     return nearby
-
-    ## Initial try
-
-    # def detect_objects(self, radius: float):
-    #     if self.agent is None:
-    #         return []
-
-    #     (ax, ay), a_size = self.agent
-    #     cx = ax + a_size / 2
-    #     cy = ay + a_size / 2
-
-    #     nearby = []
-    #     for obj in self.objects:
-    #         ox, oy = obj["x"], obj["y"]
-    #         osize = obj["size"]
-    #         ocx = ox + osize / 2
-    #         ocy = oy + osize / 2
-    #         distance = math.hypot(cx - ocx, cy - ocy)
-    #         if distance <= radius:
-    #             nearby.append({
-    #             #    "position": (ox, oy),
-    #             #    "size": osize,
-    #                 "type": obj["type"]
-    #             })
-    #     return nearby
-
-    def add_rectangle_object(self, x1, y1, x2, y2, size: float, obj_type: str):
-        """
-        Adds a filled rectangular area of objects (e.g., obstacles) between (x1, y1) and (x2, y2).
-        The area is filled with `size`-sized square blocks.
-        
-        Args:
-            x1, y1: one corner of the rectangle
-            x2, y2: opposite corner
-            size: size of each square block
-            obj_type: string type like "obstacle"
-        """
-        if obj_type not in self.objects_map:
-            raise ValueError(f"Unknown object type: {obj_type}")
-
-        x_min, x_max = sorted([x1, x2])
-        y_min, y_max = sorted([y1, y2])
-
-        x = x_min
-        while x < x_max:
-            y = y_min
-            while y < y_max:
-                self.add_object(x, y, size, obj_type)
-                y += size
-            x += size
-
