@@ -34,8 +34,9 @@ class PPOAgent(BaseAgent):
         clip_eps=0.2,
         entropy_coef=0.01,
         value_coef=0.5,
-        batch_size=64,
-        ppo_epochs=4,
+        batch_size=256,
+        ppo_epochs=10,
+        gae_lambda=0.95,
     ):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.actor_critic = ActorCritic(state_dim, action_dim).to(self.device)
@@ -48,6 +49,11 @@ class PPOAgent(BaseAgent):
         self.batch_size = batch_size
         self.ppo_epochs = ppo_epochs
         self.tol = tol
+        self.gae_lambda = gae_lambda
+        self.entropy_coef_init = entropy_coef  # Initial entropy coef for annealing
+        self.entropy_coef_final = 0.001  # Minimum entropy coef after annealing
+        self.entropy_anneal_episodes = 500  # Number of episodes over which to anneal
+        self.episode_count = 0  # Track episodes for annealing
 
         self.reset_buffers()
 
@@ -66,10 +72,11 @@ class PPOAgent(BaseAgent):
         dist = torch.distributions.Categorical(probs)
         action = dist.probs.argmax().item() if deterministic else dist.sample().item()
 
-        self.states.append(state)
-        self.actions.append(action)
-        self.log_probs.append(dist.log_prob(torch.tensor(action).to(self.device)))
-        self.values.append(value.squeeze().item())
+        if not deterministic:
+            self.states.append(state)
+            self.actions.append(action)
+            self.log_probs.append(dist.log_prob(torch.tensor(action).to(self.device)))
+            self.values.append(value.flatten().item())
         return action
 
     def store_outcome(self, reward, done):
@@ -86,40 +93,78 @@ class PPOAgent(BaseAgent):
                 + self.gamma * values[step + 1] * (1 - self.dones[step])
                 - values[step]
             )
-            gae = delta + self.gamma * self.clip_eps * (1 - self.dones[step]) * gae
+            gae = delta + self.gamma * self.gae_lambda * (1 - self.dones[step]) * gae
             advantages.insert(0, gae)
             returns.insert(0, gae + values[step])
         return returns, advantages
 
+    def anneal_entropy_coef(self):
+        # Linearly anneal entropy coefficient from initial to final value
+        frac = min(self.episode_count / self.entropy_anneal_episodes, 1.0)
+        self.entropy_coef = (
+            self.entropy_coef_init * (1 - frac) + self.entropy_coef_final * frac
+        )
+
     def update(self):
+        if not self.states:
+            return
         states = torch.FloatTensor(self.states).to(self.device)
         actions = torch.LongTensor(self.actions).to(self.device)
         old_log_probs = torch.stack(self.log_probs).detach()
-        returns, advantages = self.compute_returns_and_advantages()
+        last_state = torch.FloatTensor(self.states[-1]).unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            next_value = (
+                self.actor_critic(last_state)[1].item() if not self.dones[-1] else 0.0
+            )
+        returns, advantages = self.compute_returns_and_advantages(next_value)
         returns = torch.FloatTensor(returns).to(self.device)
         advantages = torch.FloatTensor(advantages).to(self.device)
 
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+        dataset_size = states.size(0)
+        batch_size = self.batch_size if self.batch_size > 0 else dataset_size
+
+        self.anneal_entropy_coef()
+
         for _ in range(self.ppo_epochs):
-            probs, values = self.actor_critic(states)
-            dist = torch.distributions.Categorical(probs)
-            entropy = dist.entropy().mean()
-            new_log_probs = dist.log_prob(actions)
+            indices = torch.randperm(dataset_size)
+            for start in range(0, dataset_size, batch_size):
+                end = start + batch_size
+                mb_idx = indices[start:end]
+                mb_states = states[mb_idx]
+                mb_actions = actions[mb_idx]
+                mb_old_log_probs = old_log_probs[mb_idx]
+                mb_returns = returns[mb_idx]
+                mb_advantages = advantages[mb_idx]
 
-            ratio = (new_log_probs - old_log_probs).exp()
-            surr1 = ratio * advantages
-            surr2 = (
-                torch.clamp(ratio, 1 - self.clip_eps, 1 + self.clip_eps) * advantages
-            )
+                probs, values = self.actor_critic(mb_states)
+                dist = torch.distributions.Categorical(probs)
+                entropy = dist.entropy().mean()
+                new_log_probs = dist.log_prob(mb_actions)
 
-            policy_loss = -torch.min(surr1, surr2).mean()
-            value_loss = (returns - values.squeeze()).pow(2).mean()
+                ratio = (new_log_probs - mb_old_log_probs).exp()
+                surr1 = ratio * mb_advantages
+                surr2 = (
+                    torch.clamp(ratio, 1 - self.clip_eps, 1 + self.clip_eps)
+                    * mb_advantages
+                )
 
-            loss = (
-                policy_loss + self.value_coef * value_loss - self.entropy_coef * entropy
-            )
+                policy_loss = -torch.min(surr1, surr2).mean()
+                value_loss = (mb_returns - values.flatten()).pow(2).mean()
 
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+                loss = (
+                    policy_loss
+                    + self.value_coef * value_loss
+                    - self.entropy_coef * entropy
+                )
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    self.actor_critic.parameters(), max_norm=0.5
+                )
+                self.optimizer.step()
 
         self.reset_buffers()
+        self.episode_count += 1  # Increment episode count for entropy annealing

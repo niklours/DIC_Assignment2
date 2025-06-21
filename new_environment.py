@@ -184,8 +184,8 @@ class ContinuousSpace:
         return [
             ax / self.width,
             ay / self.height,
-            dx,
-            dy,
+            # dx,
+            # dy,
             norm_dist,
             near_obstacles,
             loop_signal
