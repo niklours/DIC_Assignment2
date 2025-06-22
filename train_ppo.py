@@ -2,6 +2,9 @@ import argparse
 from agents.ppo_agent import PPOAgent
 import numpy as np
 from helper import eval_agent, setup_env, setup_env_hard
+import matplotlib.pyplot as plt
+import os
+from img_gen import get_grid_image
 
 directions = [
     "up",
@@ -13,6 +16,41 @@ directions = [
     "down_left",
     "down_right",
 ]
+
+
+def plot_and_save_rewards(rewards, save_path):
+    plt.figure()
+    plt.plot(rewards)
+    plt.xlabel("Episode")
+    plt.ylabel("Total Reward")
+    plt.title("Average Reward per Episode")
+    plt.savefig(save_path)
+    plt.close()
+
+
+def plot_and_save_success_rate(success_history, window, save_path):
+    rates = [
+        np.mean(success_history[max(0, i - window) : i + 1])
+        for i in range(len(success_history))
+    ]
+    plt.figure()
+    plt.plot(rates)
+    plt.xlabel("Episode")
+    plt.ylabel(f"Success Rate (per {window} episodes)")
+    plt.title("Success Rate per Window")
+    plt.savefig(save_path)
+    plt.close()
+
+
+def plot_and_save_trajectory(trajectory, save_path):
+    trajectory = np.array(trajectory)
+    plt.figure()
+    plt.plot(trajectory[:, 0], trajectory[:, 1], marker="o")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.title("Agent Trajectory")
+    plt.savefig(save_path)
+    plt.close()
 
 
 def main():
@@ -49,7 +87,8 @@ def main():
     success_history = []
     completed_flags = []
 
-    update_freq = 5  # Collect data from 5 episodes before each update (can be tuned)
+    save_traj_freq = 20  # Save trajectory every 20 episodes
+    update_freq = 5  # Collect data from 5 episodes before each update
     episode_buffer = 0
 
     for episode in range(1, args.episodes + 1):
@@ -81,14 +120,18 @@ def main():
         if len(success_history) > args.tol:
             success_history.pop(0)
         if args.sa and sum(success_history) == args.tol:
-            print(f"\nEarly stopping triggered at episode {episode} due to consistent success.\n")
+            print(
+                f"\nEarly stopping triggered at episode {episode} due to consistent success.\n"
+            )
             break
 
         if args.sa and (episode % (args.episodes // args.br) == 0):
             recent = completed_flags
             if not any(recent):
                 print("No success. Restarting agent and continuing.")
-                agent = PPOAgent(state_dim=state_dim, action_dim=action_dim, tol=args.tol)
+                agent = PPOAgent(
+                    state_dim=state_dim, action_dim=action_dim, tol=args.tol
+                )
                 completed_flags = []
 
         print(
@@ -99,6 +142,18 @@ def main():
         if episode_buffer >= update_freq:
             agent.update()  # Update after collecting data from multiple episodes
             episode_buffer = 0
+
+        # Save trajectory
+        if episode % save_traj_freq == 0:
+            traj_dir = "trajectories"
+            os.makedirs(traj_dir, exist_ok=True)
+            if hasattr(env, "path"):
+                img_path = os.path.join(traj_dir, f"env_path_{episode}.png")
+                plt.imshow(get_grid_image(env))
+                plt.title("Agent Trajectory - Episode {}".format(episode))
+                plt.axis("off")
+                plt.savefig(img_path)
+                plt.close()
 
     # Final update for any remaining data
     if episode_buffer > 0:
@@ -113,6 +168,12 @@ def main():
         avg_q_values=np.zeros(args.episodes),
         success_rate=success_rate,
         avg_step=avg_step,
+    )
+
+    # Save reward and success rate plots
+    plot_and_save_rewards(rewards, "ppo_rewards.png")
+    plot_and_save_success_rate(
+        success_history, window=10, save_path="ppo_success_rate.png"
     )
 
 

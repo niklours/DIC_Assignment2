@@ -219,39 +219,75 @@ class ContinuousSpace:
 
     
     
-    ## Attempt for step_with_reward WITHOUT distance information
+    # ## Attempt for step_with_reward WITHOUT distance information
+    # def step_with_reward(self, action_idx, step_size=0.5, sub_step=0.1):
+    #     if self.agent is None:
+    #         return -10.0                            
+
+    #     reward = -0.2                           
+
+    #     if not self.move_agent_direction(action_idx, step_size, sub_step):
+    #         reward -= 2.0                           
+
+    #     if self.collect_target():
+    #         reward += 20.0
+
+    #     if self.is_task_complete():
+    #         reward += 1000.0
+
+    #     target_near, obstacle_near = self.target_sense(self.bot_radius) 
+    #     if target_near: # possible target            
+    #         reward += 5.0
+    #     elif obstacle_near: # possible obstacle          
+    #         reward -= 2.0
+    #     elif self.target is not None: # wandering
+    #         reward -= 1.0
+
+    #     # ---------- loop penalty ----------------------------------------
+    #     (nx, ny), _ = self.agent
+    #     cell = (round(nx, 1), round(ny, 1))
+    #     self.prev_positions.append(cell)
+    #     loop_signal = self.prev_positions.count(cell) / len(self.prev_positions)
+    #     if loop_signal > 0.1:
+    #         reward -= loop_signal * 10.0
+
+    #     return reward
+    
     def step_with_reward(self, action_idx, step_size=0.5, sub_step=0.1):
         if self.agent is None:
-            return -10.0                            
+            return -10.0  # not placed
 
-        reward = -0.2                           
+        reward = -0.05  # time penalty
 
-        if not self.move_agent_direction(action_idx, step_size, sub_step):
-            reward -= 2.0                           
+        moved = self.move_agent_direction(action_idx, step_size, sub_step)
+        if not moved:
+            reward -= 0.5  # collision penalty
 
         if self.collect_target():
             reward += 20.0
 
         if self.is_task_complete():
-            reward += 1000.0
+            # reward += 1000.0
+            reward += 200.0
 
-        target_near, obstacle_near = self.target_sense(self.bot_radius) 
-        if target_near: # possible target            
-            reward += 5.0
-        elif obstacle_near: # possible obstacle          
-            reward -= 2.0
-        elif self.target is not None: # wandering
-            reward -= 1.0
+        target_near, obstacle_near = self.target_sense(self.bot_radius)
+        if target_near:
+            reward += 10.0  # strong positive cue
+        elif obstacle_near:
+            reward -= 1.0  # softer penalty
+        elif self.target is not None:
+            reward -= 0.2  # light wandering penalty
 
-        # ---------- loop penalty ----------------------------------------
+        # Loop penalty
         (nx, ny), _ = self.agent
         cell = (round(nx, 1), round(ny, 1))
         self.prev_positions.append(cell)
         loop_signal = self.prev_positions.count(cell) / len(self.prev_positions)
         if loop_signal > 0.1:
-            reward -= loop_signal * 10.0
+            reward -= min((loop_signal - 0.1) * 5.0, 2.0)
 
         return reward
+
     
     # ## Third try
     # def detect_objects(self, radius: float):

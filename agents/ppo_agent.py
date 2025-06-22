@@ -5,7 +5,7 @@ from agents.base_agent import BaseAgent
 
 
 class ActorCritic(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_size=128):
+    def __init__(self, state_dim, action_dim, hidden_size=256):
         super().__init__()
         self.shared = nn.Sequential(
             nn.Linear(state_dim, hidden_size),
@@ -31,10 +31,10 @@ class PPOAgent(BaseAgent):
         tol=300,
         gamma=0.99,
         lr=3e-4,
-        clip_eps=0.2,
+        clip_eps=0.1,
         entropy_coef=0.01,
         value_coef=0.5,
-        batch_size=256,
+        batch_size=64,
         ppo_epochs=10,
         gae_lambda=0.95,
     ):
@@ -98,11 +98,21 @@ class PPOAgent(BaseAgent):
             returns.insert(0, gae + values[step])
         return returns, advantages
 
+    # def anneal_entropy_coef(self):
+    #     # Linearly anneal entropy coefficient from initial to final value
+    #     frac = min(self.episode_count / self.entropy_anneal_episodes, 1.0)
+    #     self.entropy_coef = (
+    #         self.entropy_coef_init * (1 - frac) + self.entropy_coef_final * frac
+    #     )
+
     def anneal_entropy_coef(self):
-        # Linearly anneal entropy coefficient from initial to final value
-        frac = min(self.episode_count / self.entropy_anneal_episodes, 1.0)
-        self.entropy_coef = (
-            self.entropy_coef_init * (1 - frac) + self.entropy_coef_final * frac
+        # Exponentially decay entropy coefficient from initial to final value
+        decay_rate = (self.entropy_coef_final / self.entropy_coef_init) ** (
+            1 / self.entropy_anneal_episodes
+        )
+        self.entropy_coef = max(
+            self.entropy_coef_init * (decay_rate**self.episode_count),
+            self.entropy_coef_final,
         )
 
     def update(self):
@@ -121,13 +131,14 @@ class PPOAgent(BaseAgent):
         advantages = torch.FloatTensor(advantages).to(self.device)
 
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        returns = (returns - returns.mean()) / (returns.std() + 1e-8)
 
         dataset_size = states.size(0)
         batch_size = self.batch_size if self.batch_size > 0 else dataset_size
 
-        self.anneal_entropy_coef()
+        # self.anneal_entropy_coef()
 
-        for _ in range(self.ppo_epochs):
+        for epoch in range(self.ppo_epochs):
             indices = torch.randperm(dataset_size)
             for start in range(0, dataset_size, batch_size):
                 end = start + batch_size
@@ -152,6 +163,11 @@ class PPOAgent(BaseAgent):
 
                 policy_loss = -torch.min(surr1, surr2).mean()
                 value_loss = (mb_returns - values.flatten()).pow(2).mean()
+
+                # if epoch % 50 == 0:
+                #     print(f"Epoch {epoch + 1}/{self.ppo_epochs}, Batch {start // batch_size + 1}/{dataset_size // batch_size + 1}")
+                #     print(f"Entropy Coefficient: {self.entropy_coef:.5f}")
+                #     print(f"Policy Loss: {policy_loss.item():.3f}, Value Loss: {value_loss.item():.3f}, Entropy: {entropy.item():.3f}")
 
                 loss = (
                     policy_loss
