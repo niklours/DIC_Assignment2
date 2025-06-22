@@ -33,14 +33,16 @@ class ReplayBuffer:
         return len(self.buffer)
 
 class DQNAgent:
-    def __init__(self, state_dim, action_dim,tol, gamma=0.95, lr=1e-3, batch_size=32):
+    #def __init__(self, state_dim, action_dim,tol, gamma=0.95, lr=1e-3, batch_size=32):
+    def __init__(self, state_dim, action_dim, gamma, lr, tol, batch_size=32):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.policy = DQN(state_dim, action_dim).to(self.device)
         self.target_model = DQN(state_dim, action_dim).to(self.device)
         self.target_model.load_state_dict(self.policy.state_dict())
         self.q_value_diffs = []  
         self.q_stable = False
-        self.optimizer = optim.Adam(self.policy.parameters(), lr=lr)
+        self.lr = lr
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr)
         self.memory = ReplayBuffer()
         self.gamma = gamma
         self.batch_size = batch_size

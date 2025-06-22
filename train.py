@@ -2,7 +2,7 @@ import argparse
 import matplotlib.pyplot as plt
 from img_gen import get_grid_image
 from new_environment import ContinuousSpace  
-from agents.dqn_agent import DQNAgent
+from agents.dqn_agent import DQNAgent  
 from agents.dueling_dqn import DDQNAgent
 import sys
 import torch
@@ -18,9 +18,13 @@ directions = ['up', 'down', 'left', 'right', 'up_left', 'up_right', 'down_left',
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train Dueling DQN agent in ContinuousSpace environment.")
-    parser.add_argument("--episodes", type=int, default=300, help="Number of training episodes.")
+    parser = argparse.ArgumentParser(description="Train DQN agent in ContinuousSpace environment.")
+    parser.add_argument("--agent_type", type=str, default="DQN",
+        help="Agent Type to train. Possible options: DQN/Dueling DQN")
+    parser.add_argument("--episodes", type=int, default=500, help="Number of training episodes.")
     parser.add_argument("--steps", type=int, default=100, help="Max steps per episode.")
+    parser.add_argument("--gamma", type=float, default=0.95, help="Discount factor (gamma).")
+    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate.")
     parser.add_argument("--sa", action="store_true", help="Enable Strategic Adaptation.")
     parser.add_argument("--br", type=int, default=4, help="Number of brackets for SA.")
     parser.add_argument("--tol",type=int, default=300, help="Stopping criterion sucess history size.")
@@ -30,7 +34,13 @@ def main():
 
     state_dim = 7
     action_dim = len(directions)
-    agent = DDQNAgent(state_dim, action_dim, args.tol)
+    if args.agent_type == "DQN":
+        agent = DQNAgent(state_dim, action_dim, args.gamma, args.lr, args.tol)
+    elif args.agent_type == "DuelingDQN":
+        agent = DDQNAgent(state_dim, action_dim, args.gamma, args.lr, args.tol)
+    else:
+        parser.error("Wrong value for --agent_type (use 'DQN' or 'Dueling DQN').")
+
     completed_flags = []
     avg_q_values = []
     sucess_rate=0
@@ -85,7 +95,13 @@ def main():
             recent = completed_flags
             if not any(recent):
                 print("No success. Restarting agent and continuing.")
-                agent = DDQNAgent(state_dim, action_dim,args.tol)  
+                agent = DQNAgent(state_dim, action_dim, args.gamma, args.lr, args.tol)
+                if args.agent_type == "DQN":
+                    agent = DQNAgent(state_dim, action_dim, args.gamma, args.lr, args.tol)
+                elif args.agent_type == "DuelingDQN":
+                    agent = DDQNAgent(state_dim, action_dim, args.gamma, args.lr, args.tol)
+                else:
+                    parser.error("Wrong value for --agent_type (use 'DQN' or 'DuelingDQN').")
                 completed_flags = []
 
    
@@ -94,13 +110,15 @@ def main():
             break
 
 
+    
 
     if args.env == 0:
         env = setup_env()
     else:
         env = setup_env_hard()
     
-    eval_agent(env, agent, args,avg_q_values,sucess_rate/args.episodes,avg_step/sucess_episodes)
+    avg_step_per_success = avg_step / sucess_episodes if sucess_episodes else 0.0
+    eval_agent(env, agent, args,avg_q_values,sucess_rate/args.episodes, avg_step_per_success)
 
 
 if __name__ == "__main__":
