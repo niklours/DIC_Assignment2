@@ -5,7 +5,7 @@ import torch.optim as optim
 from agents.base_agent import BaseAgent
 
 class ActorCritic(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_size=128):
+    def __init__(self, state_dim, action_dim, hidden_size=256):  # 增加神经元数
         super().__init__()
         self.shared = nn.Sequential(
             nn.Linear(state_dim, hidden_size),
@@ -23,11 +23,10 @@ class ActorCritic(nn.Module):
         shared = self.shared(state)
         return self.policy_head(shared), self.value_head(shared)
 
-
 class PPOAgent(BaseAgent):
-    def __init__(self, state_dim, action_dim, tol=300, gamma=0.99, lr=3e-4, clip_eps=0.2,
-                 entropy_coef=0.01, value_coef=0.5, batch_size=64, ppo_epochs=4):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    def __init__(self, state_dim, action_dim, tol=300, gamma=0.9, lr=1e-4, clip_eps=0.4,
+                 entropy_coef=0.8, value_coef=0.6, lam=0.95, batch_size=64, ppo_epochs=4):
+        self.device = torch.device("cpu" if torch.cuda.is_available() else "cpu")
         self.actor_critic = ActorCritic(state_dim, action_dim).to(self.device)
         self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=lr)
 
@@ -38,17 +37,13 @@ class PPOAgent(BaseAgent):
         self.batch_size = batch_size
         self.ppo_epochs = ppo_epochs
         self.tol = tol
+        self.lam = lam
 
         self.reset_buffers()
 
     def reset_buffers(self):
         self.states, self.actions, self.rewards = [], [], []
         self.log_probs, self.values, self.dones = [], [], []
-
-    def policy(self, state_tensor):
-        """Return only action probabilities for compatibility with helper.py"""
-        probs, _ = self.actor_critic(state_tensor)
-        return probs
 
     def take_action(self, state, deterministic=False):
         state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
@@ -72,7 +67,7 @@ class PPOAgent(BaseAgent):
         gae = 0
         for step in reversed(range(len(self.rewards))):
             delta = self.rewards[step] + self.gamma * values[step + 1] * (1 - self.dones[step]) - values[step]
-            gae = delta + self.gamma * self.clip_eps * (1 - self.dones[step]) * gae
+            gae = delta + self.gamma * self.lam * (1 - self.dones[step]) * gae
             advantages.insert(0, gae)
             returns.insert(0, gae + values[step])
         return returns, advantages
@@ -84,6 +79,7 @@ class PPOAgent(BaseAgent):
         returns, advantages = self.compute_returns_and_advantages()
         returns = torch.FloatTensor(returns).to(self.device)
         advantages = torch.FloatTensor(advantages).to(self.device)
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         for _ in range(self.ppo_epochs):
             probs, values = self.actor_critic(states)
@@ -94,10 +90,9 @@ class PPOAgent(BaseAgent):
             ratio = (new_log_probs - old_log_probs).exp()
             surr1 = ratio * advantages
             surr2 = torch.clamp(ratio, 1 - self.clip_eps, 1 + self.clip_eps) * advantages
-
             policy_loss = -torch.min(surr1, surr2).mean()
-            value_loss = (returns - values.squeeze()).pow(2).mean()
 
+            value_loss = (returns - values.squeeze()).pow(2).mean()
             loss = policy_loss + self.value_coef * value_loss - self.entropy_coef * entropy
 
             self.optimizer.zero_grad()

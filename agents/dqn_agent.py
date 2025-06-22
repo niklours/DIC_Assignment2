@@ -139,5 +139,3 @@ class DQNAgent:
             self.epsilon = self.epsilon_min
 
         self.soft_update()
-
-
