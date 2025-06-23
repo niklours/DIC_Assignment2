@@ -1,16 +1,7 @@
 import argparse
-import matplotlib.pyplot as plt
-from img_gen import get_grid_image
-from new_environment import ContinuousSpace  
 from agents.dqn_agent import DQNAgent  
 from agents.dueling_dqn import DDQNAgent
-import sys
 import torch
-import  math
-import os
-import numpy as np
-from datetime import datetime
-import pandas as pd
 from helper import eval_agent,setup_env,setup_env_hard
 
 directions = ['up', 'down', 'left', 'right', 'up_left', 'up_right', 'down_left', 'down_right']
