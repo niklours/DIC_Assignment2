@@ -35,6 +35,8 @@ def main():
 
     state_dim = 7
     action_dim = len(directions)
+    
+    # selecting which agent the user wants to use
     if args.agent_type == "DQN":
         agent = DQNAgent(state_dim, action_dim, args.gamma, args.lr, args.tol)
     elif args.agent_type == "DuelingDQN":
@@ -110,14 +112,12 @@ def main():
             print(f"\nEarly stopping triggered at episode {episode+1} due to consistent success.\n")
             break
 
-
-    
-
     if args.env == 0:
         env = setup_env()
     else:
         env = setup_env_hard()
     
+    ## securing avg_step_per_success not zero
     avg_step_per_success = avg_step / sucess_episodes if sucess_episodes else 0.0
     eval_agent(env, agent, args,avg_q_values,sucess_rate/args.episodes, avg_step_per_success)
 

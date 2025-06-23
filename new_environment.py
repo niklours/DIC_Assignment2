@@ -1,6 +1,17 @@
 import math
 from collections import deque
 class ContinuousSpace:
+    """
+    Initialize the environment.
+
+    Params:
+        width (float): Width of the environment.
+        height (float): Height of the environment.
+        wall_size (float): Size of the boundary walls.
+
+    Returns:
+        None
+    """
     def __init__(self, width: float, height: float, wall_size: float = 1.0):
         self.width = width
         self.height = height
@@ -24,6 +35,9 @@ class ContinuousSpace:
         self.create_boundary_walls()
 
     def create_boundary_walls(self):
+        """
+        Create boundary walls around the edges of the environment.
+        """
         s = self.wall_size
         for i in range(math.ceil(self.width / s)):
             x = i * s
@@ -34,7 +48,45 @@ class ContinuousSpace:
             self.add_object(0.0, y, s, "boundary")
             self.add_object(self.width - s, y, s, "boundary")
 
+
+    def add_rectangle_object(self, x1, y1, x2, y2, size: float, obj_type: str):
+        """
+        Adds a filled rectangular area of objects (e.g., obstacles) between (x1, y1) and (x2, y2).
+        The area is filled with `size`-sized square blocks.
+        
+        Args:
+            x1, y1: one corner of the rectangle
+            x2, y2: opposite corner
+            size: size of each square block
+            obj_type: string type like "obstacle"
+        """
+        if obj_type not in self.objects_map:
+            raise ValueError(f"Unknown object type: {obj_type}")
+
+        x_min, x_max = sorted([x1, x2])
+        y_min, y_max = sorted([y1, y2])
+
+        x = x_min
+        while x < x_max:
+            y = y_min
+            while y < y_max:
+                self.add_object(x, y, size, obj_type)
+                y += size
+            x += size
+
     def add_object(self, x, y, size, obj_type):
+        """
+        Add a single object to the environment.
+
+        Args:
+            x (float): X-coordinate of the object.
+            y (float): Y-coordinate of the object.
+            size (float): Size of the object.
+            obj_type (str): Type of the object.
+
+        Returns:
+            None
+        """
         if obj_type not in self.objects_map:
             raise ValueError(f"Unknown object type: {obj_type}")
         self.objects.append({"x": x, "y": y, "size": size, "type": self.objects_map[obj_type]})
@@ -43,6 +95,17 @@ class ContinuousSpace:
             self.plate_start_positions.append((x, y, size))
 
     def place_agent(self, x: float, y: float, size: float):
+        """
+        Place the agent at a specific position in the environment.
+
+        Args:
+            x (float): X-coordinate.
+            y (float): Y-coordinate.
+            size (float): Size of the agent.
+
+        Returns:
+            None
+        """
         if not self._is_inside_inner_area(x, y, size):
             raise ValueError("Agent out of bounds.")
         if self._collides((x, y), size):
@@ -51,10 +114,33 @@ class ContinuousSpace:
         self.path = [(x, y)]
 
     def _is_inside_inner_area(self, x: float, y: float, size: float) -> bool:
+        """
+        Check if the given area is within the inner bounds of the environment.
+
+        Args:
+            x (float): X-coordinate.
+            y (float): Y-coordinate.
+            size (float): Size of the square.
+
+        Returns:
+            bool: True if the area is inside the inner bounds, False otherwise.
+        """
         s = self.wall_size
         return (s <= x <= self.width - s - size) and (s <= y <= self.height - s - size)
 
     def _squares_overlap(self, x1, y1, s1, x2, y2, s2) -> bool:
+        """
+        Check whether two squares overlap.
+
+        Args:
+            x1, y1 (float): Coordinates of first square.
+            s1 (float): Size of first square.
+            x2, y2 (float): Coordinates of second square.
+            s2 (float): Size of second square.
+
+        Returns:
+            bool: True if the squares overlap, False otherwise.
+        """
         margin = 0.05
         return not (
             x1 + s1 <= x2 + margin or x2 + s2 <= x1 + margin or
@@ -62,6 +148,16 @@ class ContinuousSpace:
         )
 
     def _collides(self, pos, size) -> bool:
+        """
+        Determine whether a square at the given position collides with any boundaries or obstacles.
+
+        Args:
+            pos (tuple): Position (x, y).
+            size (float): Size of the square.
+
+        Returns:
+            bool: True if collision occurs, False otherwise.
+        """
         px, py = pos
         for obj in self.objects:
             if obj["type"] in (self.objects_map["boundary"], self.objects_map["obstacle"]):
@@ -70,6 +166,17 @@ class ContinuousSpace:
         return False
 
     def move_agent_direction(self, action_idx: int,  step_size=0.5, sub_step=0.1):
+        """
+        Move the agent in the direction specified by the action index.
+
+        Args:
+            action_idx (int): Direction index (0-7).
+            step_size (float): Distance to move in total.
+            sub_step (float): Distance per incremental step.
+
+        Returns:
+            bool: True if the agent moved successfully, False otherwise.
+        """
         direction_map = {
             0: (0, 1),
             1: (1, 0),
@@ -101,6 +208,16 @@ class ContinuousSpace:
         return True
 
     def _try_move(self, dx: float, dy: float):
+        """
+        Attempt to move the agent by a delta.
+
+        Args:
+            dx (float): Change in x position.
+            dy (float): Change in y position.
+
+        Returns:
+            bool: True if the move is successful, False otherwise.
+        """
         if self.agent is None:
             raise ValueError("Agent not placed.")
 
@@ -119,6 +236,15 @@ class ContinuousSpace:
         return True
 
     def collect_target(self):
+        """
+        Check if the agent overlaps with the target and collect it if true.
+
+        Args:
+            None
+
+        Returns:
+            bool: True if the target is collected, False otherwise.
+        """
         if self.agent is None or self.target is None:
             return False
 
@@ -132,22 +258,31 @@ class ContinuousSpace:
         return False
 
     def is_task_complete(self):
+        """
+        Check whether the task is complete.
+
+        Args:
+            None
+
+        Returns:
+            bool: True if task is complete, False otherwise.
+        """
         return self.inventory == 1 and self.target is None
 
     def get_state_vector(self):
+        """
+        Get the normalized state vector of the agent.
+
+        Args:
+            None
+
+        Returns:
+            list: State vector containing normalized position, target/obstacle signal, and loop signal.
+        """
         if self.agent is None:
             raise ValueError("Agent not placed.")
 
         (ax, ay), _ = self.agent
-        inv = self.inventory
-        #sensor_radius = 4.0
-
-        target_near, _ = self.target_sense(self.bot_radius)
-
-       
-        dx = dy = 0.0            
-        norm_dist = 1.0 if target_near else 0.0   # 1 = sensor target, 0 = nothing
-
         near_obstacles = sum(  ## checking for possible obstacles
             1 for obj in self.objects
             if obj["type"] == self.objects_map["obstacle"]
@@ -162,17 +297,20 @@ class ContinuousSpace:
         return [
             ax / self.width,
             ay / self.height,
-            dx,
-            dy,
-            norm_dist,
             near_obstacles,
             loop_signal
         ]
+    
     # The agent learns a target or an obstacle is probably near it without knowing it's exact distance from it
     def target_sense(self, radius: float):
         """
-        Returns a pair of booleans:
-            (target_near, obstacle_near)
+        Detect whether a target or obstacle is within a sensing radius.
+
+        Args:
+            radius (float): Sensing radius.
+
+        Returns:
+            tuple: (target_near (bool), obstacle_near (bool))
         """
         if self.agent is None:
             return False, False
@@ -186,9 +324,9 @@ class ContinuousSpace:
                 continue
 
             if obj["type"] == self.objects_map["target"]:
-                target_near = True
+                target_near = True # it only provides info if the target is inside the radius, not its position
             elif obj["type"] == self.objects_map["obstacle"]:
-                obstacle_near = True
+                obstacle_near = True # it only provides info if the obstacle is inside the radius, not its position
 
             if target_near and obstacle_near:
                 break
@@ -196,9 +334,19 @@ class ContinuousSpace:
         return target_near, obstacle_near
 
     
-    
     ## Attempt for step_with_reward WITHOUT distance information
     def step_with_reward(self, action_idx, step_size=0.5, sub_step=0.1):
+        """
+        Setting the reward function of the environment.
+
+        Args:
+            action_idx (int): Index of action to take.
+            step_size (float): Total step size.
+            sub_step (float): Incremental sub-step size.
+
+        Returns:
+            float: Computed reward for each action.
+        """
         if self.agent is None:
             return -10.0                            
 
@@ -218,7 +366,7 @@ class ContinuousSpace:
             reward += 5.0
         elif obstacle_near: # possible obstacle          
             reward -= 2.0
-        elif self.target is not None: # wandering
+        elif self.target is not None: # wandering, no purpose
             reward -= 1.0
 
         # ---------- loop penalty ----------------------------------------
@@ -231,103 +379,3 @@ class ContinuousSpace:
 
         return reward
   
-
-    ##Second try
-    # def detect_objects(self, radius: float):
-        
-    #     if self.agent is None:
-    #         return []
-
-    #     (ax, ay), _ = self.agent
-    #     nearby = []
-    #     for obj in self.objects:
-    #         if math.hypot(ax - obj["x"], ay - obj["y"]) <= radius:
-    #             nearby.append({"type": obj["type"]})
-    #     return nearby
-
-
-    def add_rectangle_object(self, x1, y1, x2, y2, size: float, obj_type: str):
-        """
-        Adds a filled rectangular area of objects (e.g., obstacles) between (x1, y1) and (x2, y2).
-        The area is filled with `size`-sized square blocks.
-        
-        Args:
-            x1, y1: one corner of the rectangle
-            x2, y2: opposite corner
-            size: size of each square block
-            obj_type: string type like "obstacle"
-        """
-        if obj_type not in self.objects_map:
-            raise ValueError(f"Unknown object type: {obj_type}")
-
-        x_min, x_max = sorted([x1, x2])
-        y_min, y_max = sorted([y1, y2])
-
-        x = x_min
-        while x < x_max:
-            y = y_min
-            while y < y_max:
-                self.add_object(x, y, size, obj_type)
-                y += size
-            x += size
-
-# def step_with_reward(self, action_idx, step_size=0.5, sub_step=0.1):
-    #     if self.agent is None:
-    #         return -10.0  # Stronger penalty if agent not initialized
-
-    #     (x, y), _ = self.agent
-    #     reward = -0.2  # small time penalty
-
-    #     if self.target:
-    #         prev_dist = math.hypot(x - self.target[0], y - self.target[1])
-    #     else:
-    #         prev_dist = 0
-
-    #     moved = self.move_agent_direction(action_idx, step_size, sub_step)
-
-    #     if not moved:
-    #         reward -= 2.0  
-
-    #     if self.collect_target():
-    #         reward += 20.0
-
-    #     if self.is_task_complete():
-    #         reward += 1000.0
-
-    #     (nx, ny), _ = self.agent
-    #     # if self.target:
-    #     #     new_dist = math.hypot(nx - self.target[0], ny - self.target[1])
-    #     #     delta = prev_dist - new_dist
-    #     #     if delta > 0.01:
-    #     #         reward += delta*5.0  # stronger reward
-    #     #     else:
-    #     #         reward -= 1.0
-
-    #     # Proximity detection
-    #     proximity_flag = False
-    #     sensor_radius = 2.0
-    #     self.bot_radius = 2.0
-    #     nearby = self.detect_objects(self.bot_radius)
-    #     for obj in nearby:
-    #         if obj["type"] == self.objects_map["target"]:
-    #             reward += 5.0
-    #             proximity_flag = True
-    #         elif obj["type"] == self.objects_map["obstacle"]:
-    #             reward -= 2.0 
-
-    #     if (self.target is not None) and (proximity_flag == False):
-    #         reward -= 1.0
-
-
-    #     # Loop penalty
-    #     rounded_pos = (round(nx, 1), round(ny, 1))
-    #     self.prev_positions.append(rounded_pos)
-    #     if len(self.prev_positions) > 100:
-    #         self.prev_positions.pop(0)
-
-    #     loop_count = self.prev_positions.count(rounded_pos)
-    #     loop_signal = loop_count / len(self.prev_positions)
-    #     if loop_signal > 0.1:
-    #         reward -= loop_signal * 10.0  # stronger loop penalty
-
-    #     return reward

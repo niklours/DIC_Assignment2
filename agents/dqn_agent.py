@@ -7,6 +7,13 @@ from collections import deque
 
 class DQN(nn.Module):
     def __init__(self, input_dim, output_dim):
+        """
+        Initializes the DQN network layers.
+
+        Parameters:
+        - input_dim (int): Dimension of input/state.
+        - output_dim (int): Dimension of output/actions.
+        """
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, 256), nn.ReLU(),
@@ -19,6 +26,9 @@ class DQN(nn.Module):
         return self.net(x)
 
 class ReplayBuffer:
+    """
+    Experience replay buffer to store and sample transitions.
+    """
     def __init__(self, capacity=10000):
         self.buffer = deque(maxlen=capacity)
 
@@ -33,8 +43,19 @@ class ReplayBuffer:
         return len(self.buffer)
 
 class DQNAgent:
-    #def __init__(self, state_dim, action_dim,tol, gamma=0.95, lr=1e-3, batch_size=32):
     def __init__(self, state_dim, action_dim, gamma, lr, tol, batch_size=32):
+
+        """
+        Initializes the DQN agent.
+
+        Parameters:
+        - state_dim (int): Dimension of state space.
+        - action_dim (int): Dimension of action space.
+        - gamma (float): Discount factor.
+        - lr (float): Learning rate.
+        - tol (int): Tolerance for early stopping based on recent successes.
+        - batch_size (int): Training batch size.
+        """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.policy = DQN(state_dim, action_dim).to(self.device)
         self.target_model = DQN(state_dim, action_dim).to(self.device)
@@ -61,6 +82,12 @@ class DQNAgent:
 
 
     def update_success(self, done):
+        """
+        Updates the success history buffer and checks for early stopping condition.
+
+        Parameters:
+        - done (bool): Whether the current episode was successful.
+        """
         self.success_history.append(done)
         success_rate = sum(self.success_history) / len(self.success_history)
         
@@ -71,6 +98,16 @@ class DQNAgent:
                 self.early_stop = True
         
     def take_action(self, state, deterministic=False):
+        """
+        Selects an action using epsilon-greedy policy.
+
+        Parameters:
+        - state (np.array): Current state.
+        - deterministic (bool): If True, always choose best action.
+
+        Returns:
+        - int: Selected action.
+        """
         eps_threshold = self.epsilon_min + (self.epsilon_start - self.epsilon_min) * \
                         np.exp(-1.0 * self.train_steps / self.epsilon_decay)
         self.train_steps += 1
@@ -90,13 +127,32 @@ class DQNAgent:
             return q_vals.argmax().item()
 
     def store(self, state, action, reward, next_state, done):
+        """
+        Stores experience in the replay buffer.
+
+        Parameters:
+        - state, next_state (np.array): States.
+        - action (int): Action taken.
+        - reward (float): Reward received.
+        - done (bool): If the episode has ended.
+        """
         self.memory.push((state, action, reward, next_state, done))
 
     def soft_update(self, tau=0.005):
+        """
+        Performs a soft update of the target model.
+
+        Parameters:
+        - tau (float): Interpolation parameter for soft update.
+        """
         for target_param, param in zip(self.target_model.parameters(), self.policy.parameters()):
             target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
 
     def train_step(self):
+        """
+        Performs a single training step for the policy network.
+        Uses Double DQN logic and tracks stability of Q-values.
+        """
         if len(self.memory) < self.batch_size:
             return
 
