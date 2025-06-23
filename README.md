@@ -48,9 +48,7 @@ This module contains the agents for this project include:
 
 ### Helper Module
 - **Purpose**: The purpose of `helper.py` module is to provide the creation of the two ready-to-use environments and evaluate agent's performance.
-- 
 - **Environment Setup**: Use `helper.setup_env()` and `helper.setup_env_hard()` to create the easy and harder one environment, respectively.
-- 
 - **Evaluation** : Use `helper.eval_agent()` to evaluate agent's performance (after training)
 
 ## Usage of `train.py`
