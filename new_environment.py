@@ -148,28 +148,6 @@ class ContinuousSpace:
         dx = dy = 0.0            
         norm_dist = 1.0 if target_near else 0.0   # 1 = sensor target, 0 = nothing
 
-        # --- --------------------------------------
-
-        # nearby = self.detect_objects(sensor_radius)
-        # target_detected = None
-        # for obj in nearby:
-        #     if obj["type"] == self.objects_map["target"]:
-        #         target_detected = obj
-        #         break
-
-        # if target_detected:
-        #     tx, ty = target_detected["position"]
-        #     dx = (tx - ax) / self.width
-        #     dy = (ty - ay) / self.height
-        #     dist = math.hypot(tx - ax, ty - ay)
-        #     max_dist = math.hypot(self.width, self.height)
-        #     norm_dist = dist / max_dist
-        # else:
-        #     dx = dy = 0.0
-        #     norm_dist = 1.0  
-
-        # dx = dy = 0.0
-        # norm_dist = 1.0  
         near_obstacles = sum(  ## checking for possible obstacles
             1 for obj in self.objects
             if obj["type"] == self.objects_map["obstacle"]
@@ -190,7 +168,7 @@ class ContinuousSpace:
             near_obstacles,
             loop_signal
         ]
-    
+    # The agent learns a target or an obstacle is probably near it without knowing it's exact distance from it
     def target_sense(self, radius: float):
         """
         Returns a pair of booleans:
@@ -252,25 +230,7 @@ class ContinuousSpace:
             reward -= loop_signal * 10.0
 
         return reward
-    
-    # ## Third try
-    # def detect_objects(self, radius: float):
-    #     """Return at most one {'type': …} for each kind detected."""
-    #     if self.agent is None:
-    #         return []
-
-    #     (ax, ay), _ = self.agent
-    #     seen: set[int] = set()
-    #     nearby = []
-    #     for obj in self.objects:
-    #         if obj["type"] in seen:
-    #             continue                 
-    #         if math.hypot(ax - obj["x"], ay - obj["y"]) <= radius:
-    #             nearby.append({"type": obj["type"]})
-    #             seen.add(obj["type"])
-    #             if len(seen) == 2:   
-    #                 break
-    #     return nearby
+  
 
     ##Second try
     # def detect_objects(self, radius: float):

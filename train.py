@@ -18,6 +18,7 @@ directions = ['up', 'down', 'left', 'right', 'up_left', 'up_right', 'down_left',
 
 
 def main():
+    
     parser = argparse.ArgumentParser(description="Train DQN agent in ContinuousSpace environment.")
     parser.add_argument("--agent_type", type=str, default="DQN",
         help="Agent Type to train. Possible options: DQN/Dueling DQN")
@@ -27,7 +28,7 @@ def main():
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate.")
     parser.add_argument("--sa", action="store_true", help="Enable Strategic Adaptation.")
     parser.add_argument("--br", type=int, default=4, help="Number of brackets for SA.")
-    parser.add_argument("--tol",type=int, default=300, help="Stopping criterion sucess history size.")
+    parser.add_argument("--tol",type=int, default=300, help="Stopping criterion success history size.")
     parser.add_argument("--env",type=int, default=0, help="Which of the 2 enviroment functions to use 0 for easy, 1 for hard.")
 
     args = parser.parse_args()
