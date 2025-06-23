@@ -33,7 +33,7 @@ def main():
 
     args = parser.parse_args()
 
-    state_dim = 7
+    state_dim = 4
     action_dim = len(directions)
     
     # selecting which agent the user wants to use
