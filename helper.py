@@ -43,7 +43,7 @@ def setup_env_hard():
     return world
 
 
-def eval_agent(env, agent, args,avg_q_values,success_rate,avg_step):
+def eval_agent(env, agent, args,avg_q_values,success_rate,avg_step, show_plots):
     state = env.get_state_vector()
     agent.epsilon=0
     done = False
@@ -108,6 +108,11 @@ def eval_agent(env, agent, args,avg_q_values,success_rate,avg_step):
     plt.imshow(get_grid_image(env))
     plt.title("Final Path After Training")
     plt.axis("off")
+    
+    #Show environment on screen
+    if show_plots:
+        plt.show()
+
     plt.savefig(img_path)
     plt.close()
 
@@ -131,6 +136,10 @@ def eval_agent(env, agent, args,avg_q_values,success_rate,avg_step):
     plt.ylabel("Q-value (Normalized)")
     plt.grid(True)
     plt.legend()
+
+    #Show convergence plot
+    if show_plots:
+        plt.show()
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_dir = os.path.join("logs", folder_name)
