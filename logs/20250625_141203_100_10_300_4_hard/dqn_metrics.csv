@@ -1,0 +1,2 @@
+total_reward,average_q_value,discounted_return,path_efficiency,steps_taken,success_rate,average_steps_successful_episodes
+-1298.0000000000023,0.05363248374313116,-195.60031490642015,0.0,100,0.0,0.0

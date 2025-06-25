@@ -109,11 +109,11 @@ def eval_agent(env, agent, args,avg_q_values,success_rate,avg_step, show_plots):
     plt.title("Final Path After Training")
     plt.axis("off")
     
+    plt.savefig(img_path)
     #Show environment on screen
     if show_plots:
         plt.show()
 
-    plt.savefig(img_path)
     plt.close()
 
     metrics = {
@@ -137,9 +137,7 @@ def eval_agent(env, agent, args,avg_q_values,success_rate,avg_step, show_plots):
     plt.grid(True)
     plt.legend()
 
-    #Show convergence plot
-    if show_plots:
-        plt.show()
+   
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_dir = os.path.join("logs", folder_name)
@@ -147,6 +145,10 @@ def eval_agent(env, agent, args,avg_q_values,success_rate,avg_step, show_plots):
 
     q_plot_path = os.path.join(log_dir, "q_convergence_plot.png")
     plt.savefig(q_plot_path)
+
+     #Show convergence plot
+    if show_plots:
+        plt.show()
     plt.close()
     csv_path = os.path.join(log_dir, "dqn_metrics.csv")
     pd.DataFrame([metrics]).to_csv(csv_path, index=False)
