@@ -41,7 +41,7 @@ The script does not display plots as pop-up windows by default; instead, it save
 Log files are named using a combination of the timestamp (for uniqueness), algorithm type, number of steps and episodes, stopping tolerance, bracket size (if sa is enabled), and the environment type.
 
 
-      ```
+      
 
 
 ## Examples for quick testing
