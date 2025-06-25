@@ -21,7 +21,7 @@ def main():
     parser.add_argument("--br", type=int, default=4, help="Number of brackets for SA.")
     parser.add_argument("--tol",type=int, default=300, help="Stopping criterion success history size.")
     parser.add_argument("--env",type=int, default=0, help="Which of the 2 enviroment functions to use 0 for easy, 1 for hard.")
-    parser.add_argument("--show_plots",type=bool, default=True, help="Choose to display plots on screen")
+    parser.add_argument("--show_plots", action="store_true", help="Choose to display plots on screen")
     args = parser.parse_args()
 
     state_dim = 4

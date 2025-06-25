@@ -18,10 +18,10 @@ PYTHON_BIN="python"
 
 # Each element is a complete CLI argument string for train.py
 experiments=(
-  "--agent_type DQN --episodes 400 --steps 100 --gamma 0.95 --lr 1e-3 --sa --br 4 --tol 300 --env 1 --show_plots True"
-  "--agent_type DuelingDQN --episodes 500 --steps 100 --gamma 0.99 --lr 1e-2 --sa --br 4 --tol 300 --env 0 --show_plots True"
-  "--agent_type DQN --episodes 500 --steps 100 --gamma 0.95 --lr 1e-3 --sa --br 4 --tol 300 --env 1 --show_plots True"
-  "--agent_type DuelingDQN --episodes 500 --steps 250 --gamma 0.99 --lr 5e-3 --sa --br 4 --tol 300 --env 1 --show_plots True"
+  "--agent_type DQN --episodes 400 --steps 100 --gamma 0.95 --lr 1e-3 --sa --br 4 --tol 300 --env 1"
+  "--agent_type DuelingDQN --episodes 500 --steps 100 --gamma 0.99 --lr 1e-2 --sa --br 4 --tol 300 --env 0"
+  "--agent_type DQN --episodes 500 --steps 100 --gamma 0.95 --lr 1e-3 --sa --br 4 --tol 300 --env 1"
+  "--agent_type DuelingDQN --episodes 500 --steps 250 --gamma 0.99 --lr 5e-3 --sa --br 4 --tol 300 --env 1"
 )
 
 # Timing – start global stopwatch

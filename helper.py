@@ -100,7 +100,7 @@ def eval_agent(env, agent, args,avg_q_values,success_rate,avg_step, show_plots):
         sa=args.tol
     else:
         sa = "no_sa"
-    folder_name = f"{timestamp}_{args.steps}_{args.episodes}_{sa}_{args.br}_{env_name}"
+    folder_name = f"{timestamp}_{args.agent_type}_{args.steps}_{args.episodes}_{sa}_{args.br}_{env_name}"
     log_dir = os.path.join("logs", folder_name)
     os.makedirs(log_dir, exist_ok=True)
 

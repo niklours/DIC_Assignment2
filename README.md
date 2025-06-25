@@ -35,6 +35,12 @@ Follow these steps to set up and start using the simulation environment:
       Or, if you only want to see a single training example run on PowerShell terminal:
       ```bash 
           $ python train.py --agent_type=DQN --episodes=500 --steps=100 --gamma=0.95 --lr=1e-3 --sa --br=4 --tol=300 --env=1
+
+The script does not display plots as pop-up windows by default; instead, it saves them to the `logs` directory.
+
+Log files are named using a combination of the timestamp (for uniqueness), algorithm type, number of steps and episodes, stopping tolerance, bracket size (if sa is enabled), and the environment type.
+
+
       ```
 
 
@@ -89,5 +95,5 @@ OPTIONS:
   --env: Selecting which of the two environment functions to use 0 for easy, 1 for hard."
 
 ```
-**Example**: ```python train.py --agent_type=DQN --episodes=500 --steps=100 --gamma=0.95 --lr=1e-3 --sa --br=4 --tol=300 --env=1```
+**Example**: ```python train.py --agent_type=DQN --episodes=500 --steps=100 --gamma=0.95 --lr=1e-3 --sa --br=4 --tol=300 --env=1 --show_plots```
 
